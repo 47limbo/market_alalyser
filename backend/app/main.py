@@ -5,7 +5,15 @@ Run:  uvicorn app.main:app --reload          (live Hyperliquid data)
 """
 
 import os
+import sys
 from pathlib import Path
+
+if __name__ == "__main__" and not __package__:
+    # Started by pressing Run on this file: hand over to the launcher, which sets up the environment.
+    import runpy
+
+    runpy.run_path(str(Path(__file__).resolve().parents[2] / "run.py"), run_name="__main__")
+    sys.exit()
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -18,7 +26,7 @@ from .models import INTERVAL_MS
 from .setups import HIGHER_TIMEFRAME
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
-DEMO = os.environ.get("MA_DEMO") == "1"
+DEMO = os.environ.get("MA_DEMO", "").strip() == "1"
 
 app = FastAPI(title="Market Analyser", description="Analysis only. This app never places trades.")
 

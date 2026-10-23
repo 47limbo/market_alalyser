@@ -42,18 +42,16 @@ Steps 3 to 6 plus the reward-to-risk rule are required. A setup shows as **formi
 
 ## Run it
 
-Needs Python 3.11 or newer.
+Needs Python 3.10 or newer ([python.org/downloads](https://www.python.org/downloads/)).
 
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
+- **Mac:** double-click `start.command`. The first time, macOS may say it is from an unidentified developer: right-click it, choose Open, then Open again.
+- **Windows:** double-click `start.bat`.
+- **VS Code:** open the folder and press Run on any of `run.py`, `backend/app/main.py`, or pick "Market Analyser" in the Run and Debug panel.
+- **Terminal:** `python3 run.py` (add `--demo` for offline demo data).
 
-Open http://localhost:8000. Type a market (`BTC`, `ETH`, `SOL`, or a stock perp such as `xyz:NVDA`) and pick a timeframe. The chart updates live over Hyperliquid's websocket, and the detectors re-run each time a candle closes.
+The first start creates a private environment in `.venv` and installs the packages (about a minute). After that it starts straight away and opens http://localhost:8000 in your browser. Keep the window open while you use the app; press Ctrl+C in it to stop.
 
-No internet? Start with `MA_DEMO=1 uvicorn app.main:app` to use synthetic candles.
+Type a market (`BTC`, `ETH`, `SOL`, or a stock perp such as `xyz:NVDA`) and pick a timeframe. The chart updates live over Hyperliquid's websocket, and the detectors re-run each time a candle closes.
 
 ## Tests
 
