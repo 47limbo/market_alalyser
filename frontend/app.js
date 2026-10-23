@@ -2,24 +2,33 @@
 (() => {
   const HL_WS = "wss://api.hyperliquid.xyz/ws";
   const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // one colour per kind of annotation; the same colours appear as swatches in the Layers panel
   const C = {
     text: dark ? "#ececea" : "#1d1d1b",
-    muted: dark ? "#9a9a95" : "#6b6b66",
-    grid: dark ? "#25262b" : "#efeeea",
-    bull: "#16a34a",
-    bear: "#dc2626",
-    fvgBull: "rgba(22,163,74,0.16)",
-    fvgBear: "rgba(220,38,38,0.16)",
-    obBull: "rgba(37,99,235,0.18)",
-    obBear: "rgba(234,88,12,0.18)",
-    liq: dark ? "#fbbf24" : "#b45309",
-    vwap: dark ? "#a78bfa" : "#7c3aed",
-    premium: "rgba(220,38,38,0.05)",
-    discount: "rgba(22,163,74,0.05)",
-    ote: dark ? "rgba(96,165,250,0.6)" : "rgba(37,99,235,0.6)",
-    kz: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.035)",
-    profile: dark ? "rgba(148,163,184,0.35)" : "rgba(100,116,139,0.28)",
+    muted: dark ? "#8b8b86" : "#787b86",
+    grid: dark ? "#25262b" : "#f0f0ec",
+    bull: "#089981",
+    bear: "#f23645",
+    fvgBull: "rgba(8,153,129,0.14)",
+    fvgBear: "rgba(242,54,69,0.14)",
+    obBull: "#2962ff",
+    obBear: "#ff6d00",
+    obBullFill: "rgba(41,98,255,0.14)",
+    obBearFill: "rgba(255,109,0,0.14)",
+    liq: "#f5b700",
+    vwap: "#9c27b0",
+    premium: "rgba(242,54,69,0.045)",
+    discount: "rgba(8,153,129,0.045)",
+    ote: "#00a3bf",
+    oteFill: "rgba(0,163,191,0.06)",
+    kz: dark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.03)",
+    profile: dark ? "rgba(148,163,184,0.3)" : "rgba(120,123,134,0.22)",
+    poc: dark ? "rgba(148,163,184,0.7)" : "rgba(120,123,134,0.6)",
+    entry: "#2962ff",
+    stop: "#f23645",
+    target: "#089981",
   };
+
 
   const el = (id) => document.getElementById(id);
   const chartEl = el("chart");
@@ -30,7 +39,7 @@
     autoSize: true,
     layout: { background: { color: "transparent" }, textColor: C.muted, attributionLogo: true },
     grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
-    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 8 },
+    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 14 },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
   const candles = chart.addCandlestickSeries({
@@ -77,7 +86,7 @@
     const r = state.report;
     candles.setData(r.candles.map((k) => ({ time: sec(k.t), open: k.o, high: k.h, low: k.l, close: k.c })));
     volume.setData(r.candles.map((k) => ({
-      time: sec(k.t), value: k.v, color: k.c >= k.o ? "rgba(22,163,74,0.35)" : "rgba(220,38,38,0.35)",
+      time: sec(k.t), value: k.v, color: k.c >= k.o ? "rgba(8,153,129,0.3)" : "rgba(242,54,69,0.3)",
     })));
     lastBarTime = r.candles.at(-1).t;
 
@@ -88,14 +97,15 @@
         const bull = s.direction === "bullish";
         markers.push({
           time: sec(s.time), position: bull ? "belowBar" : "aboveBar", color: bull ? C.bull : C.bear,
-          shape: bull ? "arrowUp" : "arrowDown", text: short(s.source),
+          shape: bull ? "arrowUp" : "arrowDown", size: 0.8,
         });
       }
     }
     markers.sort((a, b) => a.time - b.time);
     candles.setMarkers(markers);
 
-    if (fit) chart.timeScale().fitContent();
+    // start zoomed on the most recent candles, where the annotations matter
+    if (fit) chart.timeScale().setVisibleLogicalRange({ from: r.candles.length - RECENT, to: r.candles.length + 14 });
     renderSummary(r);
     renderSetups(r);
     renderEvents(r);
@@ -163,6 +173,8 @@
   }
 
   // ---- overlay drawing (zones, levels, ranges) ----
+  // Shapes are drawn on the chart; all level labels go in the empty strip right of the last candle
+  // as coloured tags, so no text sits on top of the candles.
 
   function resizeOverlay() {
     const dpr = window.devicePixelRatio || 1;
@@ -187,6 +199,57 @@
     return chartEl.clientHeight - chart.timeScale().height();
   }
 
+  let tags = [];
+
+  // queue a label for the right-hand strip; lower priority numbers win when labels collide
+  function tag(price, text, bg, priority, fg = "#ffffff") {
+    const yy = y(price);
+    if (yy != null && yy > 0 && yy < plotBottom()) tags.push({ y: yy, text, bg, fg, priority });
+  }
+
+  function pill(px, py, text, bg, fg, align = "left") {
+    ctx.font = "600 11px system-ui, sans-serif";
+    const w = ctx.measureText(text).width + 10, h = 16;
+    const left = align === "right" ? px - w : align === "center" ? px - w / 2 : px;
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.roundRect(left, py - h / 2, w, h, 4);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, left + 5, py + 0.5);
+    ctx.textBaseline = "alphabetic";
+    return w;
+  }
+
+  function drawTags() {
+    // place the most important labels first; each may slide up to MAX_SHIFT px off its price
+    // to avoid another label, and is dropped if it can't, so no label ends up far from its level
+    const H = 17, MAX_SHIFT = 22;
+    const placed = [];
+    const free = (yy) => placed.every((p) => Math.abs(p.at - yy) >= H);
+    for (const t of [...tags].sort((a, b) => a.priority - b.priority)) {
+      for (let d = 0; d <= MAX_SHIFT; d++) {
+        const yy = free(t.y - d) ? t.y - d : free(t.y + d) ? t.y + d : null;
+        if (yy != null) { placed.push({ ...t, at: yy }); break; }
+      }
+    }
+    const right = plotRight() - 4;
+    for (const t of placed) {
+      ctx.font = "600 11px system-ui, sans-serif";
+      const w = ctx.measureText(t.text).width + 10;
+      if (Math.abs(t.at - t.y) > 2) {
+        ctx.strokeStyle = t.bg;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(right - w - 8, t.y);
+        ctx.lineTo(right - w, t.at);
+        ctx.stroke();
+      }
+      pill(right, t.at, t.text, t.bg, t.fg, "right");
+    }
+  }
+
   function rect(t0, t1, top, bottom, fill, stroke, dashed) {
     const right = plotRight();
     let x0 = x(t0);
@@ -206,25 +269,20 @@
     }
   }
 
-  function hline(t0, t1, price, color, dash, label) {
+  function hline(t0, t1, price, color, dash, width = 1) {
     const right = plotRight();
-    let x0 = x(t0) ?? 0;
-    let x1 = t1 == null ? right : (x(t1) ?? right);
+    const x0 = x(t0) ?? 0;
+    const x1 = t1 == null ? right : (x(t1) ?? right);
     const yy = y(price);
     if (yy == null) return;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = width;
     ctx.setLineDash(dash);
     ctx.beginPath();
-    ctx.moveTo(x0, yy + 0.5);
-    ctx.lineTo(Math.min(x1, right), yy + 0.5);
+    ctx.moveTo(x0, Math.round(yy) + 0.5);
+    ctx.lineTo(Math.min(x1, right), Math.round(yy) + 0.5);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (label) {
-      ctx.fillStyle = color;
-      ctx.font = "11px system-ui, sans-serif";
-      ctx.fillText(label, Math.min(x1, right) - ctx.measureText(label).width - 4, yy - 3);
-    }
   }
 
   function draw() {
@@ -232,6 +290,7 @@
     ctx.clearRect(0, 0, w, h);
     const r = state.report;
     if (!r) return;
+    tags = [];
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, plotRight(), plotBottom());
@@ -240,6 +299,7 @@
     const atr = r.last.atr;
     const price = r.last.price;
     const showDead = layerOn("filled");
+    const since = r.candles.at(-RECENT).t;
 
     if (layerOn("killzones")) {
       for (const k of r.killzones) {
@@ -247,30 +307,42 @@
         if (x0 == null || x1 == null) continue;
         ctx.fillStyle = C.kz;
         ctx.fillRect(x0, 0, Math.max(2, x1 - x0), plotBottom());
-        ctx.fillStyle = C.muted;
-        ctx.font = "10px system-ui, sans-serif";
-        if (ctx.measureText(k.name).width + 4 < x1 - x0) ctx.fillText(k.name, x0 + 2, 12);
       }
+    }
+
+    const vp = r.volume_profile;
+    if (layerOn("profile") && vp) {
+      // on the left edge, away from the labels on the right
+      const maxV = Math.max(...vp.bins.map((b) => b.volume));
+      for (const b of vp.bins) {
+        const y0 = y(b.high), y1 = y(b.low);
+        if (y0 == null || y1 == null) continue;
+        const isPoc = vp.poc >= b.low && vp.poc <= b.high;
+        ctx.fillStyle = isPoc ? C.poc : C.profile;
+        ctx.fillRect(0, y0, (b.volume / maxV) * 110, Math.max(1, y1 - y0 - 1));
+      }
+      hline(null, null, vp.vah, C.muted, [2, 2]);
+      hline(null, null, vp.val, C.muted, [2, 2]);
+      tag(vp.vah, "VAH", C.muted, 5);
+      tag(vp.val, "VAL", C.muted, 5);
     }
 
     const dr = r.dealing_range;
     if (layerOn("range") && dr) {
       rect(dr.start_time, null, dr.high, dr.equilibrium, C.premium);
       rect(dr.start_time, null, dr.equilibrium, dr.low, C.discount);
-      hline(dr.start_time, null, dr.equilibrium, C.muted, [2, 3], "EQ 50%");
-      rect(dr.start_time, null, dr.ote_high, dr.ote_low, "rgba(0,0,0,0)", C.ote, true);
-      ctx.fillStyle = C.ote;
-      ctx.font = "11px system-ui, sans-serif";
-      const yy = y(dr.ote_high);
-      if (yy != null) ctx.fillText("OTE", (x(dr.start_time) ?? 0) + 4, yy + 12);
+      hline(dr.start_time, null, dr.equilibrium, C.muted, [2, 3]);
+      rect(dr.start_time, null, dr.ote_high, dr.ote_low, C.oteFill, C.ote, true);
+      tag(dr.equilibrium, "EQ 50%", C.muted, 4);
+      tag((dr.ote_high + dr.ote_low) / 2, "OTE", C.ote, 3);
     }
 
     if (layerOn("fvg")) {
       const live = (g) => g.status === "open" || g.status === "partial";
       const gaps = r.fvgs.filter((g) => showDead || live(g)).slice(-MAX_ZONES);
       for (const g of gaps) {
-        const dead = !live(g);
-        rect(g.time, dead ? g.filled_time : null, g.top, g.bottom, g.direction === "bullish" ? C.fvgBull : C.fvgBear);
+        const bull = g.direction === "bullish";
+        rect(g.time, live(g) ? null : g.filled_time, g.top, g.bottom, bull ? C.fvgBull : C.fvgBear);
       }
     }
 
@@ -279,61 +351,60 @@
       for (const b of blocks) {
         const breaker = b.status === "breaker";
         const bull = b.direction === "bullish";
-        rect(b.time, breaker ? b.end_time : null, b.top, b.bottom, bull ? C.obBull : C.obBear, bull ? "#2563eb" : "#ea580c", breaker);
+        rect(b.time, breaker ? b.end_time : null, b.top, b.bottom, bull ? C.obBullFill : C.obBearFill, bull ? C.obBull : C.obBear, breaker);
       }
     }
 
-    if (layerOn("vwap")) drawVwap(r.vwap);
+    if (layerOn("vwap")) {
+      drawVwap(r.vwap);
+      tag(r.vwap.at(-1).vwap, "VWAP", C.vwap, 3);
+    }
 
     if (layerOn("liquidity")) {
       for (const lv of r.liquidity) {
-        if (lv.swept_at != null) continue;
-        if (Math.abs(lv.price - price) > 6 * atr) continue;
+        if (lv.swept_at != null || Math.abs(lv.price - price) > 6 * atr) continue;
+        hline(lv.time, null, lv.price, C.liq, [2, 3]);
         const label = lv.source === "swing" ? (lv.kind === "buy-side" ? "BSL" : "SSL") : short(lv.source);
-        hline(lv.time, null, lv.price, C.liq, [1, 3], label);
+        tag(lv.price, label, C.liq, lv.source === "swing" ? 6 : 2, "#1d1d1b");
       }
     }
 
     if (layerOn("structure")) {
-      for (const e of r.structure.slice(-14)) {
-        const color = e.direction === "bullish" ? C.bull : C.bear;
-        hline(e.swing_time, e.time, e.level, color, e.type === "CHoCH" ? [5, 3] : [], "");
-        const x0 = x(e.swing_time), x1 = x(e.time), yy = y(e.level);
-        if (x0 == null || x1 == null || yy == null) continue;
-        ctx.fillStyle = color;
-        ctx.font = "600 10px system-ui, sans-serif";
-        const label = e.type;
-        ctx.fillText(label, (x0 + x1) / 2 - ctx.measureText(label).width / 2, e.direction === "bullish" ? yy - 4 : yy + 12);
+      const boxes = [];
+      for (const e of r.structure.filter((e) => e.time >= since).slice(-8).reverse()) {
+        const bull = e.direction === "bullish";
+        const color = bull ? C.bull : C.bear;
+        hline(e.swing_time, e.time, e.level, color, e.type === "CHoCH" ? [5, 3] : [], 1.5);
+        const x1 = x(e.time), yy = y(e.level);
+        if (x1 == null || yy == null) continue;
+        // tag at the break candle, just off the line; skipped if it would cover a newer tag
+        const py = bull ? yy - 11 : yy + 11;
+        ctx.font = "600 11px system-ui, sans-serif";
+        const bw = ctx.measureText(e.type).width + 10;
+        if (boxes.some((b) => x1 + 4 < b.x + b.w && b.x < x1 + 4 + bw && Math.abs(b.y - py) < 17)) continue;
+        boxes.push({ x: x1 + 4, y: py, w: bw });
+        pill(x1 + 4, py, e.type, color, "#ffffff");
       }
     }
 
     if (layerOn("plan")) {
       for (const s of r.setups) {
         if (s.status === "none" || s.entry == null) continue;
-        rect(s.zone_time, null, s.zone_top, s.zone_bottom, "rgba(0,0,0,0)", s.direction === "long" ? C.bull : C.bear, true);
-        hline(s.zone_time, null, s.entry, C.text, [], `${s.direction} entry`);
-        hline(s.sweep_time, null, s.stop, C.bear, [6, 3], "stop");
-        s.targets.forEach((tp, i) => hline(s.zone_time, null, tp, C.bull, [6, 3], `target ${i + 1}`));
+        const long = s.direction === "long";
+        rect(s.zone_time, null, s.zone_top, s.zone_bottom, "rgba(0,0,0,0)", C.entry, true);
+        hline(s.zone_time, null, s.entry, C.entry, [], 2);
+        hline(s.sweep_time, null, s.stop, C.stop, [6, 3], 1.5);
+        tag(s.entry, `${long ? "Long" : "Short"} entry`, C.entry, 0);
+        tag(s.stop, "Stop", C.stop, 0);
+        s.targets.forEach((tp, i) => {
+          hline(s.zone_time, null, tp, C.target, [6, 3], 1.5);
+          tag(tp, `Target ${i + 1}`, C.target, 1);
+        });
       }
     }
 
     ctx.restore();
-
-    const vp = r.volume_profile;
-    if (layerOn("profile") && vp) {
-      const maxV = Math.max(...vp.bins.map((b) => b.volume));
-      const right = plotRight();
-      for (const b of vp.bins) {
-        const y0 = y(b.high), y1 = y(b.low);
-        if (y0 == null || y1 == null) continue;
-        const width = (b.volume / maxV) * 120;
-        const isPoc = vp.poc >= b.low && vp.poc <= b.high;
-        ctx.fillStyle = isPoc ? C.vwap : C.profile;
-        ctx.fillRect(right - width, y0, width, Math.max(1, y1 - y0 - 1));
-      }
-      hline(null, null, vp.vah, C.muted, [2, 2], "VAH");
-      hline(null, null, vp.val, C.muted, [2, 2], "VAL");
-    }
+    drawTags();
   }
 
   // drawn by hand so the line breaks where VWAP resets each UTC day
@@ -341,6 +412,7 @@
     ctx.strokeStyle = C.vwap;
     for (const [m, width, dash] of [[0, 2, []], [1, 1, [3, 3]], [-1, 1, [3, 3]], [2, 1, [1, 3]], [-2, 1, [1, 3]]]) {
       ctx.lineWidth = width;
+      ctx.globalAlpha = m === 0 ? 1 : 0.55;
       ctx.setLineDash(dash);
       ctx.beginPath();
       let prev = null;
@@ -353,6 +425,7 @@
       }
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
     ctx.setLineDash([]);
   }
 
@@ -376,7 +449,7 @@
       if (k.s !== state.coin || k.i !== state.interval) return;
       const t = Number(k.t);
       candles.update({ time: sec(t), open: +k.o, high: +k.h, low: +k.l, close: +k.c });
-      volume.update({ time: sec(t), value: +k.v, color: +k.c >= +k.o ? "rgba(22,163,74,0.35)" : "rgba(220,38,38,0.35)" });
+      volume.update({ time: sec(t), value: +k.v, color: +k.c >= +k.o ? "rgba(8,153,129,0.3)" : "rgba(242,54,69,0.3)" });
       el("s-price").textContent = fmt(+k.c);
       if (lastBarTime != null && t > lastBarTime) {
         // the previous candle just closed: re-run the detectors on closed data
@@ -396,6 +469,20 @@
   }
 
   // ---- wiring ----
+
+  // colour swatches next to each layer toggle, taken from the palette above
+  const swatch = {
+    structure: [C.bull, C.bear], fvg: [C.fvgBull, C.fvgBear], ob: [C.obBull, C.obBear], liquidity: [C.liq],
+    sweeps: [C.bull, C.bear], range: [C.ote], killzones: [C.muted], vwap: [C.vwap], profile: [C.muted],
+    plan: [C.entry, C.stop, C.target],
+  };
+  for (const [layer, colors] of Object.entries(swatch)) {
+    const label = document.querySelector(`[data-layer="${layer}"]`).parentElement;
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = colors.length > 1 ? `linear-gradient(90deg, ${colors.join(", ")})` : colors[0];
+    label.append(sw);
+  }
 
   el("controls").addEventListener("submit", (e) => {
     e.preventDefault();

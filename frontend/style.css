@@ -73,8 +73,8 @@ dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #layers { display: grid; gap: 4px; }
 #events { margin: 0; padding-left: 26px; max-height: 260px; overflow: auto; font-size: 13px; }
 #events li { margin-bottom: 4px; }
-.bull { color: #16a34a; }
-.bear { color: #dc2626; }
+.bull { color: #089981; }
+.bear { color: #f23645; }
 footer { padding: 10px 16px 16px; color: var(--muted); font-size: 12px; }
 footer a { color: inherit; }
 
@@ -96,3 +96,5 @@ footer a { color: inherit; }
 .mark-fail { color: var(--muted); }
 .plan { font-size: 12.5px; font-variant-numeric: tabular-nums; }
 #alert { background: #16a34a; color: #fff; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; }
+#layers label { display: flex; }
+.swatch { width: 22px; height: 8px; border-radius: 4px; margin-left: auto; flex: none; }
