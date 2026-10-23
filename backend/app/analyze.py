@@ -9,9 +9,16 @@ from .detectors.structure import detect_structure
 from .detectors.volume import relative_volume, session_vwap, volume_profile
 from .detectors.zones import dealing_range, detect_fvgs, detect_order_blocks
 from .models import Candle
+from .setups import evaluate_setups
 
 
-def analyse(candles: list[Candle], swing_lookback: int = 3, profile_candles: int = 200) -> dict:
+def analyse(
+    candles: list[Candle],
+    swing_lookback: int = 3,
+    profile_candles: int = 200,
+    htf_candles: list[Candle] | None = None,
+    min_rr: float = 2.0,
+) -> dict:
     if len(candles) < 2 * swing_lookback + 3:
         raise ValueError("not enough candles to analyse")
 
@@ -22,6 +29,15 @@ def analyse(candles: list[Candle], swing_lookback: int = 3, profile_candles: int
     liquidity = detect_liquidity(candles, structure.swings, atrs)
     last = candles[-1]
     rvol = relative_volume(candles)
+    vwap = session_vwap(candles)
+    dealing = dealing_range(candles, structure.swings, structure.trend)
+    htf_trend = None
+    if htf_candles and len(htf_candles) >= 2 * swing_lookback + 3:
+        htf_trend = detect_structure(htf_candles, atr(htf_candles), lookback=swing_lookback).trend
+    setups = evaluate_setups(
+        candles, atrs, rvol, vwap, structure.events, liquidity.sweeps, fvgs, blocks, liquidity.levels,
+        dealing, htf_trend, min_rr=min_rr,
+    )
 
     def t(i: int | None) -> int | None:
         return candles[i].t if i is not None else None
@@ -35,6 +51,10 @@ def analyse(candles: list[Candle], swing_lookback: int = 3, profile_candles: int
             "killzone": killzone_for(last.t),
         },
         "trend": structure.trend,
+        "htf_trend": htf_trend,
+        "setups": [
+            {**asdict(su), "zone_time": t(su.zone_time_index), "sweep_time": t(su.sweep_index)} for su in setups
+        ],
         "swings": [{**asdict(s), "time": t(s.index)} for s in structure.swings],
         "structure": [{**asdict(e), "time": t(e.index), "swing_time": t(e.swing_index)} for e in structure.events],
         "fvgs": [{**asdict(g), "time": t(g.index), "filled_time": t(g.filled_at)} for g in fvgs],
@@ -43,11 +63,11 @@ def analyse(candles: list[Candle], swing_lookback: int = 3, profile_candles: int
             {**asdict(lv), "time": t(lv.index), "swept_time": t(lv.swept_at)} for lv in liquidity.levels
         ],
         "sweeps": [{**asdict(s), "time": t(s.index)} for s in liquidity.sweeps],
-        "dealing_range": _with_time(dealing_range(candles, structure.swings, structure.trend), t),
+        "dealing_range": _with_time(dealing, t),
         "killzones": [
             {**k, "start_time": t(k["start_index"]), "end_time": t(k["end_index"])} for k in killzone_spans(candles)
         ],
-        "vwap": session_vwap(candles),
+        "vwap": vwap,
         "volume_profile": volume_profile(candles[-profile_candles:]),
     }
 

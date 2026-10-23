@@ -57,11 +57,12 @@ button { background: var(--accent); color: #fff; border-color: var(--accent); cu
 main {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
   gap: 16px;
   padding: 16px;
 }
-#chart-wrap { position: relative; min-height: 520px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+#chart-wrap { height: max(520px, calc(100vh - 150px)); position: sticky; top: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 #chart { position: absolute; inset: 0; }
 #overlay { position: absolute; inset: 0; pointer-events: none; }
 aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -70,7 +71,7 @@ dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
 dt { color: var(--muted); }
 dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #layers { display: grid; gap: 4px; }
-#events { margin: 0; padding-left: 18px; max-height: 260px; overflow: auto; font-size: 13px; }
+#events { margin: 0; padding-left: 26px; max-height: 260px; overflow: auto; font-size: 13px; }
 #events li { margin-bottom: 4px; }
 .bull { color: #16a34a; }
 .bear { color: #dc2626; }
@@ -79,5 +80,19 @@ footer a { color: inherit; }
 
 @media (max-width: 860px) {
   main { grid-template-columns: 1fr; }
-  #chart-wrap { min-height: 420px; }
+  #chart-wrap { height: 420px; position: relative; top: 0; }
 }
+
+.setup { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.setup:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.setup-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.badge.ready { background: #16a34a; border-color: #16a34a; color: #fff; }
+.badge.forming { border-color: #d97706; color: #d97706; }
+.checks { list-style: none; margin: 6px 0; padding: 0; font-size: 12.5px; }
+.checks li { display: flex; gap: 6px; }
+.checks small { color: var(--muted); margin-left: auto; text-align: right; }
+.mark-pass { color: #16a34a; }
+.mark-fail { color: var(--muted); }
+.plan { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#alert { background: #16a34a; color: #fff; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; }

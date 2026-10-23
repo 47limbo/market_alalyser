@@ -4,7 +4,7 @@ A market analysis app for crypto and stock perpetuals. It loads live candles fro
 
 **Analysis only.** The app has no order code and needs no trading keys. Nothing it shows is financial advice.
 
-## What phase 1 and 2 include
+## What it does so far (phases 1 to 3)
 
 | Detector | What you see on the chart |
 | --- | --- |
@@ -18,7 +18,27 @@ A market analysis app for crypto and stock perpetuals. It loads live candles fro
 | VWAP | Daily VWAP with 1 and 2 standard deviation bands |
 | Volume profile | Volume by price on the right edge, with point of control and value area |
 
+| Entry Check (phase 3) | Long and short checklists, entry zone, stop and targets drawn on the chart, and an alert when a setup becomes ready |
+
 The side panel shows current structure, where price sits in the dealing range, the session, ATR, relative volume, and the latest events. Detection rules match Part 2 of the research doc and live in `backend/app/detectors/`.
+
+### Entry Check
+
+`backend/app/setups.py` runs the setup model from Part 3.2 of the research doc for both directions:
+
+1. Higher-timeframe structure agrees (15m checks 4h, 1h checks 1d, and so on)
+2. Price in discount for a long, premium for a short
+3. Liquidity swept against the trade in the last 40 candles
+4. CHoCH or BOS after the sweep
+5. The break came with displacement
+6. A live fair value gap (or order block) left by the move
+7. Price has pulled back into that zone
+8. Inside a killzone
+9. Volume at least 1.5x average on the break
+10. Price on the right side of VWAP
+11. Reward to risk at least 2R (stop beyond the sweep plus 0.1 ATR, first target at the next untouched opposing liquidity)
+
+Steps 3 to 6 plus the reward-to-risk rule are required. A setup shows as **forming** while it waits for the pullback and **ready** once price is in the zone; a close beyond the stop cancels it. The other steps add to the score. Change the minimum with `?min_rr=` on `/api/analysis`.
 
 ## Run it
 
@@ -55,6 +75,6 @@ frontend/                    chart page (TradingView Lightweight Charts 4.2.3, v
 
 ## Next
 
-Phase 3 adds the Entry Check (setup scoring with stop, targets and reward to risk) and alerts. Phase 4 adds the backtester, phase 5 the fundamental and macro Bias Score, and phase 6 the AI analyst brief.
+Phase 4 adds the backtester, phase 5 the fundamental and macro Bias Score, and phase 6 the AI analyst brief.
 
 Charts by [TradingView](https://www.tradingview.com/) Lightweight Charts™ (Apache 2.0, see `frontend/vendor/LIGHTWEIGHT-CHARTS-LICENSE`).

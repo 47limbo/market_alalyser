@@ -15,6 +15,7 @@ from .analyze import analyse
 from .demo import demo_candles
 from .hyperliquid import HyperliquidError, fetch_candles
 from .models import INTERVAL_MS
+from .setups import HIGHER_TIMEFRAME
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 DEMO = os.environ.get("MA_DEMO") == "1"
@@ -49,15 +50,18 @@ async def analysis(
     interval: str = "15m",
     limit: int = Query(500, ge=30, le=5000),
     swing_lookback: int = Query(3, ge=1, le=10),
+    min_rr: float = Query(2.0, gt=0, le=20),
 ):
     data = await load(coin, interval, limit)
     if not data:
         raise HTTPException(404, f"no candles for {coin}")
+    htf = HIGHER_TIMEFRAME.get(interval)
+    htf_data = await load(coin, htf, 300) if htf else None
     try:
-        report = analyse(data, swing_lookback=swing_lookback)
+        report = analyse(data, swing_lookback=swing_lookback, htf_candles=htf_data, min_rr=min_rr)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return {"coin": coin, "interval": interval, "candles": [c.to_dict() for c in data], **report}
+    return {"coin": coin, "interval": interval, "htf_interval": htf, "candles": [c.to_dict() for c in data], **report}
 
 
 @app.get("/")

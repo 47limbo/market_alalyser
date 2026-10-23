@@ -38,11 +38,18 @@
         <dl>
           <dt>Price</dt><dd id="s-price">–</dd>
           <dt>Structure</dt><dd id="s-trend">–</dd>
+          <dt>Higher timeframe</dt><dd id="s-htf">–</dd>
           <dt>Dealing range</dt><dd id="s-zone">–</dd>
           <dt>Session</dt><dd id="s-kz">–</dd>
           <dt>ATR (14)</dt><dd id="s-atr">–</dd>
           <dt>Relative volume</dt><dd id="s-rvol">–</dd>
         </dl>
+      </section>
+
+      <section class="card" id="entry-check">
+        <h2>Entry Check</h2>
+        <div id="alert" role="status" hidden></div>
+        <div id="setups"></div>
       </section>
 
       <section class="card">
@@ -57,6 +64,7 @@
           <label><input type="checkbox" data-layer="killzones"> Killzones</label>
           <label><input type="checkbox" data-layer="vwap" checked> VWAP and bands</label>
           <label><input type="checkbox" data-layer="profile"> Volume profile</label>
+          <label><input type="checkbox" data-layer="plan" checked> Entry, stop and targets</label>
           <label><input type="checkbox" data-layer="filled"> Show filled and broken zones</label>
         </div>
       </section>

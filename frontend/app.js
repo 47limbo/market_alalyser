@@ -97,6 +97,7 @@
 
     if (fit) chart.timeScale().fitContent();
     renderSummary(r);
+    renderSetups(r);
     renderEvents(r);
   }
 
@@ -113,9 +114,40 @@
     el("s-price").textContent = fmt(r.last.price);
     el("s-trend").innerHTML = r.trend ? `<span class="${r.trend === "bullish" ? "bull" : "bear"}">${r.trend}</span>` : "no break yet";
     el("s-zone").textContent = dr ? `${dr.zone} (${Math.round(dr.position * 100)}%)${dr.in_ote ? " · in OTE" : ""}` : "–";
+    el("s-htf").textContent = r.htf_interval ? `${r.htf_trend ?? "no break yet"} (${r.htf_interval})` : "–";
     el("s-kz").textContent = r.last.killzone ?? "outside killzones";
     el("s-atr").textContent = fmt(r.last.atr);
     el("s-rvol").textContent = r.last.rvol == null ? "–" : `${r.last.rvol.toFixed(2)}x`;
+  }
+
+  const lastStatus = {};
+
+  function renderSetups(r) {
+    el("setups").innerHTML = r.setups.map((s) => {
+      const checks = s.checks.map((c) => {
+        const mark = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "–";
+        return `<li><span class="mark-${c.status === "pass" ? "pass" : "fail"}">${mark}</span>${c.label}<small>${c.detail}</small></li>`;
+      }).join("");
+      const plan = s.entry != null && s.stop != null
+        ? `<div class="plan">Entry ${fmt(s.entry)} · Stop ${fmt(s.stop)} · Targets ${s.targets.map(fmt).join(", ") || "–"}${s.reward_risk != null ? ` · ${s.reward_risk}R` : ""}</div>`
+        : "";
+      return `<div class="setup"><div class="setup-head"><span class="${s.direction === "long" ? "bull" : "bear"}">${s.direction === "long" ? "Long" : "Short"} ${s.score}/${s.max_score}</span><span class="badge ${s.status}">${s.status === "none" ? "no setup" : s.status}</span></div><ul class="checks">${checks}</ul>${plan}</div>`;
+    }).join("");
+
+    // alert when a setup newly becomes ready for the market on screen
+    const key = `${r.coin}:${r.interval}`;
+    for (const s of r.setups) {
+      const id = `${key}:${s.direction}`;
+      if (s.status === "ready" && lastStatus[id] && lastStatus[id] !== "ready") notify(`${r.coin} ${r.interval}: ${s.direction} setup ready at ${fmt(s.entry)}`);
+      lastStatus[id] = s.status;
+    }
+  }
+
+  function notify(text) {
+    const box = el("alert");
+    box.textContent = text;
+    box.hidden = false;
+    if ("Notification" in window && Notification.permission === "granted") new Notification("Market Analyser", { body: text });
   }
 
   function renderEvents(r) {
@@ -275,6 +307,16 @@
       }
     }
 
+    if (layerOn("plan")) {
+      for (const s of r.setups) {
+        if (s.status === "none" || s.entry == null) continue;
+        rect(s.zone_time, null, s.zone_top, s.zone_bottom, "rgba(0,0,0,0)", s.direction === "long" ? C.bull : C.bear, true);
+        hline(s.zone_time, null, s.entry, C.text, [], `${s.direction} entry`);
+        hline(s.sweep_time, null, s.stop, C.bear, [6, 3], "stop");
+        s.targets.forEach((tp, i) => hline(s.zone_time, null, tp, C.bull, [6, 3], `target ${i + 1}`));
+      }
+    }
+
     ctx.restore();
 
     const vp = r.volume_profile;
@@ -355,7 +397,11 @@
 
   // ---- wiring ----
 
-  el("controls").addEventListener("submit", (e) => { e.preventDefault(); load(); });
+  el("controls").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+    load();
+  });
   el("interval").addEventListener("change", load);
   document.querySelectorAll("[data-layer]").forEach((box) => box.addEventListener("change", () => state.report && render(false)));
   new ResizeObserver(resizeOverlay).observe(chartEl);
