@@ -27,10 +27,152 @@
   </header>
 
   <main>
+    <div id="left">
     <section id="chart-wrap">
       <div id="chart"></div>
       <canvas id="overlay"></canvas>
     </section>
+
+    <section id="glossary" class="card">
+      <h2>What the chart shows</h2>
+      <p class="lead">Each marking below matches its colour on the chart. None of them is a signal on its own: traders look for several lining up (the Entry Check does this for you) and always plan the stop first.</p>
+
+      <h3>Market structure</h3>
+      <div class="terms">
+        <article>
+          <header><span class="tag" style="background:var(--c-bull)">BOS</span><span class="tag" style="background:var(--c-bear)">BOS</span><b>Break of structure</b></header>
+          <p><em>What it is.</em> A candle body closes beyond the last swing high (bullish, green) or swing low (bearish, red) in the direction of the current trend. The line runs from the swing that was broken to the candle that broke it.</p>
+          <p><em>Effect.</em> Confirms the trend is continuing: buyers (or sellers) were strong enough to take out the previous extreme.</p>
+          <p><em>How to use it.</em> Trade in the direction of recent BOS. After a bullish BOS, wait for a pullback into a gap or order block to buy, rather than chasing the break.</p>
+        </article>
+        <article>
+          <header><span class="tag" style="background:var(--c-bull)">CHoCH</span><span class="tag" style="background:var(--c-bear)">CHoCH</span><b>Change of character</b></header>
+          <p><em>What it is.</em> The first break against the trend: a close above the last lower high in a downtrend, or below the last higher low in an uptrend. Drawn with a dashed line.</p>
+          <p><em>Effect.</em> An early warning that the trend may be reversing. It is weaker than a BOS until price confirms it with a further break the same way.</p>
+          <p><em>How to use it.</em> Stop adding to the old trend. A CHoCH that follows a liquidity sweep and comes with displacement is the core reversal signal the Entry Check looks for.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-candle"></span><b>Displacement</b></header>
+          <p><em>What it is.</em> A large, decisive candle: body at least 1.5 times the average range (ATR) with small wicks. Not drawn separately; it shows in the Entry Check and the event list.</p>
+          <p><em>Effect.</em> Shows real intent from big participants and usually leaves a fair value gap behind.</p>
+          <p><em>How to use it.</em> Trust breaks that come with displacement far more than slow, overlapping drifts through a level.</p>
+        </article>
+      </div>
+
+      <h3>Liquidity</h3>
+      <div class="terms">
+        <article>
+          <header><span class="tag tag-dark" style="background:var(--c-liq)">BSL</span><span class="tag tag-dark" style="background:var(--c-liq)">SSL</span><b>Buy-side and sell-side liquidity</b></header>
+          <p><em>What it is.</em> Dotted amber lines at swing highs (BSL) and swing lows (SSL) that price has not yet traded through. Stop orders and breakout orders cluster just beyond them.</p>
+          <p><em>Effect.</em> Price is drawn towards these pools because that is where large orders can be filled.</p>
+          <p><em>How to use it.</em> Use the nearest untouched pool in your direction as a target, and keep your own stop away from obvious pools.</p>
+        </article>
+        <article>
+          <header><span class="tag tag-dark" style="background:var(--c-liq)">EQH</span><span class="tag tag-dark" style="background:var(--c-liq)">EQL</span><b>Equal highs and lows</b></header>
+          <p><em>What it is.</em> Two swing highs (or lows) within a tenth of an ATR of each other: an obvious double top or bottom.</p>
+          <p><em>Effect.</em> Many traders put stops right behind them, so they are a favourite place for a stop hunt.</p>
+          <p><em>How to use it.</em> Expect them to be swept before a real move. Do not treat equal highs as strong resistance to short against.</p>
+        </article>
+        <article>
+          <header><span class="tag tag-dark" style="background:var(--c-liq)">PDH</span><span class="tag tag-dark" style="background:var(--c-liq)">Asia low</span><b>Previous day and Asia session levels</b></header>
+          <p><em>What it is.</em> Previous day high and low (PDH, PDL, by UTC day) and the high and low of the Asia session (8pm to midnight New York time).</p>
+          <p><em>Effect.</em> Levels the whole market watches. London and New York often sweep one side of the Asia range or the previous day before the day's main move.</p>
+          <p><em>How to use it.</em> Watch for a sweep of one of these early in London or New York as a setup trigger, and use the opposite one as a target.</p>
+        </article>
+        <article>
+          <header><span class="arrow" style="color:var(--c-bull)">▲</span><span class="arrow" style="color:var(--c-bear)">▼</span><b>Liquidity sweep</b></header>
+          <p><em>What it is.</em> Price wicks through a liquidity level but closes back inside within three candles. A green up arrow means sell-side was taken under a low; a red down arrow means buy-side was taken above a high.</p>
+          <p><em>Effect.</em> Stops have been triggered and filled by larger players, which often marks a turning point.</p>
+          <p><em>How to use it.</em> A sweep alone is not an entry. Wait for a CHoCH or BOS the other way, then enter on the pullback, with your stop beyond the sweep's wick.</p>
+        </article>
+      </div>
+
+      <h3>Price zones</h3>
+      <div class="terms">
+        <article>
+          <header><span class="sw sw-box" style="background:var(--c-fvg-bull)"></span><span class="sw sw-box" style="background:var(--c-fvg-bear)"></span><b>Fair value gap (FVG)</b></header>
+          <p><em>What it is.</em> A three-candle gap where the first candle's high and third candle's low do not overlap (bullish, green box) or the reverse (bearish, red box). Price moved too fast to trade there.</p>
+          <p><em>Effect.</em> Price often comes back to fill part of the gap, then continues in the direction of the move. The middle of the gap is a common reaction point.</p>
+          <p><em>How to use it.</em> After a break, place a limit entry in the gap (the app uses its midpoint). If price closes all the way through it, the gap has failed and flips to work the other way.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-box" style="background:var(--c-ob-bull-fill);border-color:var(--c-ob-bull)"></span><span class="sw sw-box" style="background:var(--c-ob-bear-fill);border-color:var(--c-ob-bear)"></span><b>Order block (OB)</b></header>
+          <p><em>What it is.</em> The last opposite-coloured candle before a displacement move that broke structure: the last down candle before a rally (blue) or the last up candle before a drop (orange).</p>
+          <p><em>Effect.</em> Where large orders were placed; price often reacts when it returns there.</p>
+          <p><em>How to use it.</em> Use it as an entry zone when there is no gap, with the stop just beyond the block. A close through it turns it into a breaker (dashed outline, shown with "Show filled and broken zones").</p>
+        </article>
+        <article>
+          <header><span class="sw sw-split"></span><span class="tag" style="background:var(--c-muted)">EQ 50%</span><b>Premium and discount</b></header>
+          <p><em>What it is.</em> The current dealing range, from the latest swing low to swing high, split at 50%. The top half (light red) is premium; the bottom half (light green) is discount.</p>
+          <p><em>Effect.</em> Professionals prefer to buy cheap and sell expensive inside a range.</p>
+          <p><em>How to use it.</em> Look for longs in discount and shorts in premium. A long taken in premium has a worse stop and less room to target.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-box" style="background:var(--c-ote-fill);border:1px dashed var(--c-ote)"></span><span class="tag" style="background:var(--c-ote)">OTE</span><b>Optimal trade entry</b></header>
+          <p><em>What it is.</em> The 62% to 79% pullback of the dealing range, drawn as a dashed cyan box.</p>
+          <p><em>Effect.</em> A deep but not complete pullback, where many trend continuations restart.</p>
+          <p><em>How to use it.</em> An FVG or order block inside the OTE box is a higher-quality entry than one outside it.</p>
+        </article>
+      </div>
+
+      <h3>Volume and time</h3>
+      <div class="terms">
+        <article>
+          <header><span class="sw sw-line" style="background:var(--c-vwap)"></span><span class="tag" style="background:var(--c-vwap)">VWAP</span><b>VWAP and bands</b></header>
+          <p><em>What it is.</em> The average price paid today, weighted by volume, resetting each UTC day (solid purple). Dashed and dotted lines are 1 and 2 standard deviations away.</p>
+          <p><em>Effect.</em> Intraday traders treat it as fair value: above it buyers are in control, below it sellers are. The outer bands mark stretched moves.</p>
+          <p><em>How to use it.</em> Favour longs above VWAP and shorts below. Moves to the 2 standard deviation band often snap back towards VWAP.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-profile"></span><span class="tag" style="background:var(--c-muted)">VAH</span><b>Volume profile</b></header>
+          <p><em>What it is.</em> Bars on the left edge showing how much volume traded at each price over the last 200 candles. The darkest bar is the point of control (POC); VAH and VAL bound the 70% of volume around it.</p>
+          <p><em>Effect.</em> High-volume prices act like magnets and support or resistance; thin areas get crossed quickly.</p>
+          <p><em>How to use it.</em> Expect price to slow down at the POC and value area edges, and to move fast through gaps in the profile.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-box" style="background:var(--c-kz)"></span><b>Killzones</b></header>
+          <p><em>What it is.</em> Shaded time windows (New York time): Asia 8pm to midnight, London 2am to 5am, New York morning 7am to 10am, London close 10am to noon.</p>
+          <p><em>Effect.</em> Most volume and the cleanest moves happen in these windows; outside them, moves are often choppy.</p>
+          <p><em>How to use it.</em> Prefer setups that form inside London or New York killzones. Be wary of signals in quiet hours.</p>
+        </article>
+      </div>
+
+      <h3>Trade plan (Entry Check)</h3>
+      <div class="terms">
+        <article>
+          <header><span class="sw sw-box" style="border:1px dashed var(--c-entry)"></span><span class="tag" style="background:var(--c-entry)">Long entry</span><b>Entry zone and entry</b></header>
+          <p><em>What it is.</em> The gap or order block the setup would enter from (dashed blue box), and the suggested entry at its middle (solid blue line).</p>
+          <p><em>Effect.</em> Entering on the pullback instead of the breakout gives a tighter stop and better reward to risk.</p>
+          <p><em>How to use it.</em> "Forming" means wait for price to come back to the zone. "Ready" means price is in it now. The app never places the order; you decide.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-dash" style="border-color:var(--c-stop)"></span><span class="tag" style="background:var(--c-stop)">Stop</span><b>Stop</b></header>
+          <p><em>What it is.</em> Just beyond the wick that swept liquidity, plus a small buffer (0.1 ATR).</p>
+          <p><em>Effect.</em> If price gets back past the sweep, the idea is wrong. A candle closing beyond the stop cancels the setup.</p>
+          <p><em>How to use it.</em> Size the position from the stop: decide how much you are willing to lose (for example 0.5% of your account), divide by the distance from entry to stop.</p>
+        </article>
+        <article>
+          <header><span class="sw sw-dash" style="border-color:var(--c-target)"></span><span class="tag" style="background:var(--c-target)">Target 1</span><b>Targets and reward to risk</b></header>
+          <p><em>What it is.</em> The next two untouched liquidity pools in the trade direction. Reward to risk (R) is the distance to target 1 divided by the distance to the stop.</p>
+          <p><em>Effect.</em> Price tends to travel from one pool of liquidity to the next.</p>
+          <p><em>How to use it.</em> The Entry Check needs at least 2R. Many traders take part profit at target 1 and move the stop to entry.</p>
+        </article>
+        <article>
+          <header><span class="badge forming">forming</span><span class="badge ready">ready</span><b>Entry Check score</b></header>
+          <p><em>What it is.</em> The checklist in the side panel, scored out of the steps that apply. The sweep, the structure break, the entry zone and at least 2R are required; the rest raise confidence.</p>
+          <p><em>Effect.</em> More checks lined up means more independent reasons agree, not a guarantee.</p>
+          <p><em>How to use it.</em> Read why a step failed (shown on the right of each line) and decide whether it matters for this trade.</p>
+        </article>
+      </div>
+
+      <h3>Side panel numbers</h3>
+      <dl class="defs">
+        <dt>Higher timeframe</dt><dd>Structure on the bigger chart (15m checks 4h, 1h checks 1 day). Trades with it work more often than trades against it.</dd>
+        <dt>ATR (14)</dt><dd>Average candle range over the last 14 candles. Used to size gaps, stops and "how far is far".</dd>
+        <dt>Relative volume</dt><dd>This candle's volume against the average of the last 20. Above 1.5x means unusual activity.</dd>
+      </dl>
+    </section>
+    </div>
 
     <aside>
       <section class="card" id="summary">
