@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Analyser</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Market Analyser</h1>
+    <form id="controls">
+      <label>Market <input id="coin" value="BTC" list="coins" autocomplete="off"></label>
+      <datalist id="coins">
+        <option value="BTC"><option value="ETH"><option value="SOL"><option value="HYPE">
+        <option value="xyz:NVDA"><option value="xyz:TSLA"><option value="xyz:AAPL">
+      </datalist>
+      <label>Timeframe
+        <select id="interval">
+          <option>1m</option><option>5m</option><option selected>15m</option><option>30m</option>
+          <option>1h</option><option>4h</option><option>1d</option>
+        </select>
+      </label>
+      <button type="submit">Load</button>
+      <span id="status" role="status"></span>
+    </form>
+  </header>
+
+  <main>
+    <section id="chart-wrap">
+      <div id="chart"></div>
+      <canvas id="overlay"></canvas>
+    </section>
+
+    <aside>
+      <section class="card" id="summary">
+        <h2>Right now</h2>
+        <dl>
+          <dt>Price</dt><dd id="s-price">–</dd>
+          <dt>Structure</dt><dd id="s-trend">–</dd>
+          <dt>Dealing range</dt><dd id="s-zone">–</dd>
+          <dt>Session</dt><dd id="s-kz">–</dd>
+          <dt>ATR (14)</dt><dd id="s-atr">–</dd>
+          <dt>Relative volume</dt><dd id="s-rvol">–</dd>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2>Layers</h2>
+        <div id="layers">
+          <label><input type="checkbox" data-layer="structure" checked> BOS / CHoCH</label>
+          <label><input type="checkbox" data-layer="fvg" checked> Fair value gaps</label>
+          <label><input type="checkbox" data-layer="ob" checked> Order blocks</label>
+          <label><input type="checkbox" data-layer="liquidity" checked> Resting liquidity</label>
+          <label><input type="checkbox" data-layer="sweeps" checked> Sweeps</label>
+          <label><input type="checkbox" data-layer="range" checked> Premium / discount</label>
+          <label><input type="checkbox" data-layer="killzones"> Killzones</label>
+          <label><input type="checkbox" data-layer="vwap" checked> VWAP and bands</label>
+          <label><input type="checkbox" data-layer="profile"> Volume profile</label>
+          <label><input type="checkbox" data-layer="filled"> Show filled and broken zones</label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Latest events</h2>
+        <ol id="events"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <footer>
+    Analysis only. This app never places trades and nothing here is financial advice.
+    Market data from Hyperliquid. Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts™.
+  </footer>
+
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
