@@ -68,18 +68,28 @@
     el("status").className = error ? "error" : "";
   }
 
+  let loadSeq = 0; // bumps on every switch, so answers for a market you already left are dropped
+
   async function load() {
+    const seq = ++loadSeq;
     state.coin = el("coin").value.trim() || "BTC";
     state.interval = el("interval").value;
-    setStatus("Loading…");
+    // stop everything still running for the previous market
+    clearTimeout(refreshTimer);
+    clearInterval(pollTimer);
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    setStatus(`Loading ${state.coin}…`);
+    let report;
     try {
       const res = await fetch(`/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500`);
       if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-      state.report = await res.json();
+      report = await res.json();
     } catch (err) {
-      setStatus(`Could not load ${state.coin}: ${err.message}`, true);
+      if (seq === loadSeq) setStatus(`Could not load ${state.coin}: ${err.message}`, true);
       return;
     }
+    if (seq !== loadSeq) return;
+    state.report = report;
     render(true);
     connectLive();
     const from = { hyperliquid: `Live · ${state.report.asset.coin} on Hyperliquid`, yahoo: `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)`, demo: "Demo data (offline)" };
@@ -98,7 +108,7 @@
 
     const markers = [];
     if (layerOn("sweeps")) {
-      const since = r.candles.at(-RECENT).t;
+      const since = r.candles[Math.max(0, r.candles.length - RECENT)].t;
       for (const s of r.sweeps.filter((s) => s.time >= since)) {
         const bull = s.direction === "bullish";
         markers.push({
@@ -148,6 +158,7 @@
   };
 
   async function loadContext() {
+    const seq = loadSeq;
     const ticker = state.report.asset.ticker;
     if (!state.context || state.context.asset.ticker !== ticker) {
       el("confidence").innerHTML = '<p class="muted">Reading the news, yields and Fed calendar…</p>';
@@ -157,11 +168,12 @@
       const res = await fetch(`/api/context?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}`);
       if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
       const ctx = await res.json();
-      if (ctx.asset.ticker !== state.report.asset.ticker) return; // the user moved on
+      if (seq !== loadSeq || ctx.asset.ticker !== state.report.asset.ticker) return; // the user moved on
       state.context = ctx;
       renderConfidence(ctx);
       renderContext(ctx);
     } catch (err) {
+      if (seq !== loadSeq) return;
       el("confidence").innerHTML = `<p class="error">Could not load the news and macro context: ${esc(err.message)}</p>`;
     }
   }
@@ -186,13 +198,15 @@
     const signal = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", risk: "Event risk" };
     let html = "";
     {
-      const factors = ctx.factors.filter((f) => f.group !== "Deep research");
+      // the asset's own news first and full width, then everything else
+      const order = (f) => f.key === "news" ? 0 : f.key === "macro_news" ? 2 : 1;
+      const factors = ctx.factors.filter((f) => f.group !== "Deep research").sort((a, b) => order(a) - order(b));
       html += `<div class="factors">` + factors.map((f) => {
         const isNews = f.group === "News" || f.group === "Macro and politics";
         const sources = f.sources.length ? (isNews
           ? `<ul class="headlines">${f.sources.map((s) => `<li><span class="tone ${s.tone > 0 ? "bull" : s.tone < 0 ? "bear" : ""}">${s.tone > 0 ? "▲" : s.tone < 0 ? "▼" : "•"}</span>${link(s)} <small>${esc(s.source)} ${ago(s.published)}</small></li>`).join("")}</ul>`
           : `<p class="src">Source: ${f.sources.map(link).join(" · ")}</p>`) : "";
-        return `<article class="factor"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)}</p>${sources}</article>`;
+        return `<article class="factor${f.key === "news" ? " wide" : ""}"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)}</p>${sources}</article>`;
       }).join("") + "</div>";
     }
     html += renderResearch(ctx);
@@ -443,7 +457,7 @@
     const atr = r.last.atr;
     const price = r.last.price;
     const showDead = layerOn("filled");
-    const since = r.candles.at(-RECENT).t;
+    const since = r.candles[Math.max(0, r.candles.length - RECENT)].t;
 
     if (layerOn("killzones")) {
       for (const k of r.killzones) {
@@ -637,13 +651,20 @@
       }
       lastBarTime = Math.max(lastBarTime ?? 0, t);
     };
-    ws.onclose = () => { setTimeout(() => { if (!ws || ws.readyState === WebSocket.CLOSED) connectLive(); }, 3000); };
+    const me = ws;
+    ws.onclose = () => { setTimeout(() => { if (ws === me) connectLive(); }, 3000); }; // reconnect only if still current
   }
 
   async function refresh() {
+    const seq = loadSeq;
     try {
       const res = await fetch(`/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500`);
-      if (res.ok) { state.report = await res.json(); render(false); loadContext(); }
+      if (!res.ok || seq !== loadSeq) return;
+      const report = await res.json();
+      if (seq !== loadSeq) return;
+      state.report = report;
+      render(false);
+      loadContext();
     } catch { /* keep the last good report */ }
   }
 

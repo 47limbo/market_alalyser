@@ -29,7 +29,7 @@ __all__ = ["get_context", "run_research", "research_status", "score_setup", "Res
 
 async def _gather(asset: Asset) -> tuple[list[Factor], list[str]]:
     today = datetime.now(timezone.utc).date()
-    jobs = [macro_factors(asset.kind, today), news_factors(asset.name, asset.news_query, asset.kind, asset.yahoo)]
+    jobs = [macro_factors(asset.kind, today), news_factors(asset.name, asset.news_query, asset.kind, asset.yahoo, asset.keywords)]
     if asset.kind == "stock":
         jobs += [fetch_earnings(asset.ticker, today), sec_factors(asset.ticker)]
     factors, missing = [], []
@@ -52,7 +52,7 @@ def demo_factors(asset: Asset) -> list[Factor]:
         Factor("us2y", "Rates and yields", "2-year yield", "3.52% (-9 bp over 20 trading days). The 2-year tracks where traders expect the Fed rate; it is falling, so the market is pricing more cuts.", 0.3, 1.0, sources=demo),
         Factor("vix", "Rates and yields", "VIX", "17.2: normal.", 0.1, 1.0, sources=demo),
         fomc_factor(today, []),
-        Factor("news", "News", f"{asset.name} headlines", "18 headlines in the last 2 days: 7 positive, 4 negative in tone.",
+        Factor("news", "News", f"Latest on {asset.name}", "18 headlines in the last 2 days: 7 positive, 4 negative in tone.",
                round(rnd.uniform(-0.5, 0.6), 2), 1.0, sources=[dict(demo[0], title=f"Demo headline about {asset.name}", tone=0.5, source="Demo")]),
         Factor("macro_news", "Macro and politics", "Fed, inflation, trade and policy headlines", "40 headlines in the last 2 days: 11 positive, 13 negative in tone.",
                -0.12, 0.8, sources=demo),

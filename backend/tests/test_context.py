@@ -118,3 +118,11 @@ def test_sec_results_from_filings():
     f = sec_factor("NVDA", facts, filings)
     assert "Q2 2026" in f.detail and "+50%" in f.detail and "$12.0bn (+20%)" in f.detail and f.score > 0.5
     assert f.sources[0]["title"] == "8-K filed 2026-08-28 (earnings release)"
+
+
+def test_headlines_must_name_the_asset():
+    from app.context.news import mentions
+    amd = find("AMD").keywords
+    assert mentions("AMD jumps on new AI chip deal", amd) and mentions("Advanced Micro Devices beats estimates", amd)
+    assert not mentions("Amdocs shares slide", amd) and not mentions("Nvidia hits record high", amd)
+    assert not mentions("Metal prices climb", find("META").keywords)

@@ -54,7 +54,12 @@ def tone(title: str) -> float:
     return clamp(total / 2)
 
 
-def headline_factor(key: str, group: str, label: str, items: list[dict], weight: float) -> Factor:
+def mentions(title: str, keywords: tuple[str, ...]) -> bool:
+    text = title.lower()
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])", text) for k in keywords)
+
+
+def headline_factor(key: str, group: str, label: str, items: list[dict], weight: float, show: int = 5) -> Factor:
     scored = [dict(i, tone=tone(i["title"])) for i in items]
     toned = [i for i in scored if i["tone"]]
     avg = sum(i["tone"] for i in toned) / len(toned) if toned else 0.0
@@ -62,7 +67,7 @@ def headline_factor(key: str, group: str, label: str, items: list[dict], weight:
     detail = f"{len(scored)} headlines in the last 2 days: {ups} positive, {downs} negative in tone."
     if not scored:
         detail = "No headlines in the last 2 days."
-    picks = sorted(scored, key=lambda i: -abs(i["tone"]))[:5]
+    picks = sorted(scored, key=lambda i: -(i["published"] or 0))[:show]  # newest first
     sources = [{"title": i["title"], "url": i["url"], "source": i["source"], "tone": i["tone"], "published": i["published"]} for i in picks]
     # few toned headlines are weak evidence, so shrink the score toward zero
     confidence = min(1.0, len(toned) / 6)
@@ -82,7 +87,7 @@ async def yahoo_headlines(http, symbol: str) -> list[dict]:
     return [i for i in items if not i["published"] or i["published"] >= cutoff]
 
 
-async def news_factors(name: str, query: str, kind: str, yahoo: str | None = None) -> tuple[list[Factor], list[str]]:
+async def news_factors(name: str, query: str, kind: str, yahoo: str | None = None, keywords: tuple[str, ...] = ()) -> tuple[list[Factor], list[str]]:
     missing = []
     queries = [query] + MACRO_QUERIES.get(kind, MACRO_QUERIES["stock"])
     async with client() as http:
@@ -99,6 +104,9 @@ async def news_factors(name: str, query: str, kind: str, yahoo: str | None = Non
         missing.append("Google News (asset headlines)")
     titles = {i["title"] for i in asset_items}
     asset_items += [i for i in yahoo_items if i["title"] not in titles]
+    if keywords:
+        # keep only stories that actually name the asset; searches and feeds also return loosely related ones
+        asset_items = [i for i in asset_items if mentions(i["title"], keywords)]
     macro_items, seen = [], set()
     for r in results[1:]:
         if isinstance(r, Exception):
@@ -111,7 +119,8 @@ async def news_factors(name: str, query: str, kind: str, yahoo: str | None = Non
         missing.append("Google News (macro and political headlines)")
     factors = []
     if asset_items or not isinstance(results[0], Exception):
-        factors.append(headline_factor("news", "News", f"{name} headlines", asset_items, weight=1.0))
+        factors.append(headline_factor("news", "News", f"Latest on {name}", asset_items, weight=1.0, show=10))
     if macro_items:
-        factors.append(headline_factor("macro_news", "Macro and politics", "Fed, inflation, trade and policy headlines", macro_items, weight=0.8))
+        label = "Crypto-wide: Fed, regulation and ETF flows" if kind == "crypto" else "Market-wide: Fed, inflation, trade and politics"
+        factors.append(headline_factor("macro_news", "Macro and politics", label, macro_items, weight=0.8))
     return factors, missing

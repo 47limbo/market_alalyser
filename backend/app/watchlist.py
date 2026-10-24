@@ -15,26 +15,27 @@ class Asset:
     name: str
     yahoo: str  # Yahoo Finance symbol for the fallback chart
     news_query: str  # Google News search for this asset's headlines
+    keywords: tuple[str, ...] = ()  # a headline must name one of these to count as news about this asset
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
 WATCHLIST: list[Asset] = [
-    Asset("NVDA", "xyz:NVDA", "stock", "Nvidia", "NVDA", '"Nvidia" OR NVDA stock'),
-    Asset("TSLA", "xyz:TSLA", "stock", "Tesla", "TSLA", '"Tesla" OR TSLA stock'),
-    Asset("AAPL", "xyz:AAPL", "stock", "Apple", "AAPL", '"Apple" AAPL stock'),
-    Asset("AMD", "xyz:AMD", "stock", "AMD", "AMD", '"Advanced Micro Devices" OR AMD stock'),
-    Asset("MSFT", "xyz:MSFT", "stock", "Microsoft", "MSFT", '"Microsoft" MSFT stock'),
-    Asset("AMZN", "xyz:AMZN", "stock", "Amazon", "AMZN", '"Amazon" AMZN stock'),
-    Asset("META", "xyz:META", "stock", "Meta Platforms", "META", '"Meta Platforms" OR META stock'),
-    Asset("PLTR", "xyz:PLTR", "stock", "Palantir", "PLTR", '"Palantir" OR PLTR stock'),
-    Asset("GOOGL", "xyz:GOOGL", "stock", "Alphabet", "GOOGL", '"Alphabet" OR "Google" GOOGL stock'),
-    Asset("SPY", "mkts:US500", "etf", "S&P 500 (SPY)", "SPY", '"S&P 500" OR SPY stocks'),
-    Asset("QQQ", "mkts:USTECH", "etf", "Nasdaq 100 (QQQ)", "QQQ", '"Nasdaq 100" OR QQQ OR Nasdaq stocks'),
-    Asset("IWM", "mkts:SMALL2000", "etf", "Russell 2000 (IWM)", "IWM", '"Russell 2000" OR IWM small caps'),
-    Asset("BTC", "BTC", "crypto", "Bitcoin", "BTC-USD", "Bitcoin OR BTC price"),
-    Asset("SOL", "SOL", "crypto", "Solana", "SOL-USD", "Solana OR SOL crypto price"),
+    Asset("NVDA", "xyz:NVDA", "stock", "Nvidia", "NVDA", '"Nvidia" OR NVDA stock', ('nvidia', 'nvda')),
+    Asset("TSLA", "xyz:TSLA", "stock", "Tesla", "TSLA", '"Tesla" OR TSLA stock', ('tesla', 'tsla')),
+    Asset("AAPL", "xyz:AAPL", "stock", "Apple", "AAPL", '"Apple" AAPL stock', ('apple', 'aapl', 'iphone')),
+    Asset("AMD", "xyz:AMD", "stock", "AMD", "AMD", '"Advanced Micro Devices" OR AMD stock', ('amd', 'advanced micro devices')),
+    Asset("MSFT", "xyz:MSFT", "stock", "Microsoft", "MSFT", '"Microsoft" MSFT stock', ('microsoft', 'msft')),
+    Asset("AMZN", "xyz:AMZN", "stock", "Amazon", "AMZN", '"Amazon" AMZN stock', ('amazon', 'amzn', 'aws')),
+    Asset("META", "xyz:META", "stock", "Meta Platforms", "META", '"Meta Platforms" OR META stock', ('meta', 'facebook', 'instagram', 'zuckerberg')),
+    Asset("PLTR", "xyz:PLTR", "stock", "Palantir", "PLTR", '"Palantir" OR PLTR stock', ('palantir', 'pltr')),
+    Asset("GOOGL", "xyz:GOOGL", "stock", "Alphabet", "GOOGL", '"Alphabet" OR "Google" GOOGL stock', ('google', 'alphabet', 'googl', 'youtube')),
+    Asset("SPY", "mkts:US500", "etf", "S&P 500 (SPY)", "SPY", '"S&P 500" OR SPY stocks', ('s&p', 's&p 500', 'spy', 'wall street', 'stocks', 'dow')),
+    Asset("QQQ", "mkts:USTECH", "etf", "Nasdaq 100 (QQQ)", "QQQ", '"Nasdaq 100" OR QQQ OR Nasdaq stocks', ('nasdaq', 'qqq', 'tech stocks')),
+    Asset("IWM", "mkts:SMALL2000", "etf", "Russell 2000 (IWM)", "IWM", '"Russell 2000" OR IWM small caps', ('russell', 'small cap', 'small caps', 'small-cap', 'iwm')),
+    Asset("BTC", "BTC", "crypto", "Bitcoin", "BTC-USD", "Bitcoin OR BTC price", ('bitcoin', 'btc')),
+    Asset("SOL", "SOL", "crypto", "Solana", "SOL-USD", "Solana OR SOL crypto price", ('solana', 'sol')),
 ]
 
 _BY_KEY = {k.upper(): a for a in WATCHLIST for k in (a.ticker, a.coin)}

@@ -52,7 +52,8 @@ def resolve(coin: str) -> Asset:
         return asset
     name = coin.split(":")[-1].upper()
     kind = "stock" if ":" in coin else "crypto"
-    return Asset(name, coin, kind, name, name if kind == "stock" else f"{name}-USD", f"{name} stock" if kind == "stock" else f"{name} crypto price")
+    return Asset(name, coin, kind, name, name if kind == "stock" else f"{name}-USD",
+                 f"{name} stock" if kind == "stock" else f"{name} crypto price", (name.lower(),))
 
 
 async def load(coin: str, interval: str, limit: int):
