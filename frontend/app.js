@@ -206,7 +206,7 @@
     let html = '<h3>Deep research</h3>';
     if (!b) {
       if (!ctx.research_available) {
-        return html + '<p class="muted">Claude can search the web and read the stories for you, then write a cited bull and bear case. Add <code>ANTHROPIC_API_KEY=...</code> to the <code>.env</code> file next to run.py and restart to turn it on. Each run costs a few cents to a few dimes of API credit.</p>';
+        return html + '<p class="muted">Claude can search the web and read the stories for you, then write a cited bull and bear case. Add <code>ANTHROPIC_API_KEY=...</code> to the <code>.env</code> file next to run.py and restart to turn it on. Each run uses API credit, roughly $0.25 to $1.50.</p>';
       }
       const running = state.research || ctx.research_running;
       return html + `<p class="muted">Claude searches the web (earnings, yields, the Fed, politics, company news), reads the sources and writes a cited brief. Takes 1 to 3 minutes and uses API credit.</p>
