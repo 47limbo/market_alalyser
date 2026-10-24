@@ -206,3 +206,4 @@ code { font-size: 12px; background: var(--border); padding: 1px 4px; border-radi
 .b-risk { background: repeating-linear-gradient(135deg, #d97706 0 3px, rgba(217,119,6,0.35) 3px 6px); }
 .factor .group { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 #context-body > .factors { margin-top: 12px; }
+#version { font-size: 11px; font-weight: 500; color: var(--muted); }

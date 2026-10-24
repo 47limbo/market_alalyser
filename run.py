@@ -12,8 +12,11 @@ Uses only the standard library, so it works before anything is installed.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -28,7 +31,7 @@ VENV = ROOT / ".venv"
 REQUIREMENTS = BACKEND / "requirements.txt"
 STAMP = VENV / ".requirements-installed"
 PORT = int(os.environ.get("MA_PORT", "8000"))
-URL = f"http://localhost:{PORT}"
+VERSION = re.search(r'VERSION = "([^"]+)"', (BACKEND / "app" / "__init__.py").read_text()).group(1)
 
 
 def venv_python() -> Path:
@@ -113,14 +116,50 @@ def read_env_file() -> dict[str, str]:
     return out
 
 
-def open_browser_when_ready() -> None:
-    for _ in range(60):
+def running_version(port: int) -> str | None:
+    """The version of a Market Analyser already answering on this port ("old" if it predates versions)."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/config", timeout=1) as resp:
+            return json.load(resp).get("version", "old")
+    except (OSError, ValueError):
+        return None
+
+
+def port_free(port: int) -> bool:
+    with socket.socket() as s:
         try:
-            urllib.request.urlopen(URL + "/api/config", timeout=1)
-            webbrowser.open(URL)
-            return
+            s.bind(("127.0.0.1", port))
+            return True
         except OSError:
-            time.sleep(0.5)
+            return False
+
+
+def pick_port() -> int:
+    """PORT if it is free; otherwise explain what holds it and use the next free one."""
+    if port_free(PORT):
+        return PORT
+    other = running_version(PORT)
+    if other is None:
+        print(f"Port {PORT} is used by another program.")
+    elif other != VERSION:
+        label = "from before this update" if other == "old" else f"version {other}"
+        print(f"\n*** An older copy of Market Analyser ({label}) is still running on port {PORT}. ***")
+        print("    It is probably in another Terminal window, or from an older download folder.")
+        print("    Close that window (or press Ctrl+C in it) so you don't open the old app by mistake.\n")
+    else:
+        print(f"This version is already running on port {PORT}; starting a second copy.")
+    for port in range(PORT + 1, PORT + 50):
+        if port_free(port):
+            return port
+    fail(f"No free port between {PORT} and {PORT + 49}. Close other copies of the app and try again.")
+
+
+def open_browser_when_ready(port: int) -> None:
+    for _ in range(60):
+        if running_version(port) == VERSION:
+            webbrowser.open(f"http://localhost:{port}")
+            return
+        time.sleep(0.5)
 
 
 def main() -> None:
@@ -130,11 +169,13 @@ def main() -> None:
         print(f"  {what}: {'on' if env.get(key) else f'off (add {key} to .env to turn on)'}")
     if "--demo" in sys.argv:
         env["MA_DEMO"] = "1"
-    print(f"Starting Market Analyser at {URL}  (press Ctrl+C here to stop)")
-    threading.Thread(target=open_browser_when_ready, daemon=True).start()
+    port = pick_port()
+    print(f"Starting Market Analyser v{VERSION} from {ROOT}")
+    print(f"Open http://localhost:{port}  (press Ctrl+C here to stop)")
+    threading.Thread(target=open_browser_when_ready, args=(port,), daemon=True).start()
     try:
         subprocess.call(
-            [str(venv_python()), "-m", "uvicorn", "app.main:app", "--port", str(PORT)],
+            [str(venv_python()), "-m", "uvicorn", "app.main:app", "--port", str(port)],
             cwd=BACKEND,
             env=env,
         )

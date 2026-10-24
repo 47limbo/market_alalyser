@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import yahoo
+from . import VERSION, yahoo
 from .analyze import analyse
 from .context import ResearchUnavailable, get_context, run_research, score_setup
 from .demo import demo_candles
@@ -32,7 +32,16 @@ FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 DEMO = os.environ.get("MA_DEMO", "").strip() == "1"
 
 app = FastAPI(title="Market Analyser", description="Analysis only. This app never places trades.")
-_setups: dict[str, list[dict]] = {}  # latest Entry Check per market and timeframe, for the confidence score
+_setups: dict[str, list[dict]] = {}
+
+
+@app.middleware("http")
+async def no_stale_frontend(request, call_next):
+    # make the browser re-check the page and scripts each load, so an update shows up straight away
+    response = await call_next(request)
+    if not request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response  # latest Entry Check per market and timeframe, for the confidence score
 
 
 def resolve(coin: str) -> Asset:
@@ -68,7 +77,7 @@ async def load(coin: str, interval: str, limit: int):
 
 @app.get("/api/config")
 async def config():
-    return {"demo": DEMO, "intervals": list(INTERVAL_MS), "watchlist": [a.to_dict() for a in WATCHLIST]}
+    return {"version": VERSION, "demo": DEMO, "intervals": list(INTERVAL_MS), "watchlist": [a.to_dict() for a in WATCHLIST]}
 
 
 @app.get("/api/candles")

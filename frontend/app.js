@@ -627,5 +627,5 @@
   resizeOverlay();
   requestAnimationFrame(loop);
 
-  fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; renderWatchlist(cfg.watchlist); load(); });
+  fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; el("version").textContent = `v${cfg.version}`; renderWatchlist(cfg.watchlist); load(); });
 })();
