@@ -202,7 +202,17 @@
       const order = (f) => f.key === "news" ? 0 : f.key === "macro_news" ? 2 : 1;
       const factors = ctx.factors.filter((f) => f.group !== "Deep research").sort((a, b) => order(a) - order(b));
       html += `<div class="factors">` + factors.map((f) => {
-        const isNews = f.group === "News" || f.group === "Macro and politics";
+        if (f.key === "news") {
+          // one box per story: the headline as its title, the publisher's summary inside
+          const stories = f.sources.map((s) => {
+            const t = s.tone > 0 ? "bullish" : s.tone < 0 ? "bearish" : "neutral";
+            return `<article class="story"><header><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><span class="sig sig-${t}">${signal[t]}</span></header>
+              <p>${s.summary ? esc(s.summary) : '<span class="muted">No summary in the feed. Open the story to read it.</span>'}</p>
+              <footer>${esc(s.source)}${s.published ? ` · ${ago(s.published)}` : ""}</footer></article>`;
+          }).join("");
+          return `<article class="factor wide"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)} Tone is read from each headline's wording.</p><div class="stories">${stories || '<p class="muted">No stories naming it in the last 2 days.</p>'}</div></article>`;
+        }
+        const isNews = f.group === "Macro and politics";
         const sources = f.sources.length ? (isNews
           ? `<ul class="headlines">${f.sources.map((s) => `<li><span class="tone ${s.tone > 0 ? "bull" : s.tone < 0 ? "bear" : ""}">${s.tone > 0 ? "▲" : s.tone < 0 ? "▼" : "•"}</span>${link(s)} <small>${esc(s.source)} ${ago(s.published)}</small></li>`).join("")}</ul>`
           : `<p class="src">Source: ${f.sources.map(link).join(" · ")}</p>`) : "";

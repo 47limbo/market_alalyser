@@ -126,3 +126,19 @@ def test_headlines_must_name_the_asset():
     assert mentions("AMD jumps on new AI chip deal", amd) and mentions("Advanced Micro Devices beats estimates", amd)
     assert not mentions("Amdocs shares slide", amd) and not mentions("Nvidia hits record high", amd)
     assert not mentions("Metal prices climb", find("META").keywords)
+
+
+def test_summaries_dedupe_and_junk():
+    from app.context.feeds import meta_description
+    from app.context.news import JUNK, merge
+    rss = """<rss><channel><item><title>Palantir wins Army deal</title><link>https://x.com/a</link>
+    <description>&lt;p&gt;Palantir signed a ten-year contract with the US Army worth up to $10bn, its largest so far.&lt;/p&gt;</description></item>
+    <item><title>Palantir wins Army deal - Reuters</title><source>Reuters</source><description>&lt;a href="x"&gt;Palantir wins Army deal&lt;/a&gt; Reuters</description></item>
+    </channel></rss>"""
+    a, b = parse_rss(rss)
+    assert a["summary"].startswith("Palantir signed a ten-year contract") and b["summary"] == ""
+    assert merge([b], [a]) == [a]
+    page = '<html><head><meta property="og:description" content="Shares rose after the company raised its full-year revenue outlook again."></head>'
+    assert meta_description(page).startswith("Shares rose")
+    assert JUNK.search("PLTR 261023 160.00C (PLTR261023C160000) Stock Options Chain") and JUNK.search("Form 4 Palantir Technologies Inc")
+    assert not JUNK.search("Palantir stock faces brutal test")

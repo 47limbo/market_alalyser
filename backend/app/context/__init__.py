@@ -53,7 +53,14 @@ def demo_factors(asset: Asset) -> list[Factor]:
         Factor("vix", "Rates and yields", "VIX", "17.2: normal.", 0.1, 1.0, sources=demo),
         fomc_factor(today, []),
         Factor("news", "News", f"Latest on {asset.name}", "18 headlines in the last 2 days: 7 positive, 4 negative in tone.",
-               round(rnd.uniform(-0.5, 0.6), 2), 1.0, sources=[dict(demo[0], title=f"Demo headline about {asset.name}", tone=0.5, source="Demo")]),
+               round(rnd.uniform(-0.5, 0.6), 2), 1.0, sources=[
+                   {"title": f"Demo: {asset.name} {h}", "url": "https://finance.yahoo.com/", "tone": t, "source": "Demo feed",
+                    "published": int(time.time() * 1000) - hrs * 3_600_000, "summary": sm}
+                   for h, t, sm, hrs in [
+                       ("shares climb after analyst upgrade", 0.5, "Sample summary: a broker raised its rating and price target, citing stronger demand and margins. In live mode this text is the publisher's own summary.", 2),
+                       ("faces questions ahead of earnings", 0, "Sample summary: investors are weighing guidance and spending plans before next week's report.", 6),
+                       ("slides as export rules tighten", -0.5, "Sample summary: new trade restrictions could weigh on overseas sales, analysts said.", 11),
+                       ("outlook in focus", 0, "", 16)]]),
         Factor("macro_news", "Macro and politics", "Fed, inflation, trade and policy headlines", "40 headlines in the last 2 days: 11 positive, 13 negative in tone.",
                -0.12, 0.8, sources=demo),
     ]

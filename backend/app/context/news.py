@@ -8,10 +8,16 @@ import asyncio
 import re
 
 from .factor import Factor, clamp
-from .feeds import client, get_text, now_ms, parse_rss
+from urllib.parse import parse_qs, urlparse
+
+from .feeds import client, get_text, meta_description, now_ms, parse_rss
 
 GOOGLE_NEWS = "https://news.google.com/rss/search"
+NEWS_SHOWN = 10
 YAHOO_NEWS = "https://feeds.finance.yahoo.com/rss/2.0/headline"
+BING_NEWS = "https://www.bing.com/news/search"
+# quote pages, option contracts and insider-filing stubs are not news
+JUNK = re.compile(r"\b[A-Z]{1,5}\d{6}[CP]\d{6,8}\b|options chain|stock price, news, quote|^form 4\b|\bquote & history\b", re.I)
 DAY_MS = 86_400_000
 
 # phrase -> tone, checked longest first so "rate cut" wins over "cut"
@@ -68,7 +74,8 @@ def headline_factor(key: str, group: str, label: str, items: list[dict], weight:
     if not scored:
         detail = "No headlines in the last 2 days."
     picks = sorted(scored, key=lambda i: -(i["published"] or 0))[:show]  # newest first
-    sources = [{"title": i["title"], "url": i["url"], "source": i["source"], "tone": i["tone"], "published": i["published"]} for i in picks]
+    sources = [{"title": i["title"], "url": i["url"], "source": i["source"], "tone": i["tone"], "published": i["published"],
+                "summary": i.get("summary", "")} for i in picks]
     # few toned headlines are weak evidence, so shrink the score toward zero
     confidence = min(1.0, len(toned) / 6)
     return Factor(key, group, label, detail, score=avg * confidence, weight=weight, sources=sources)
@@ -87,26 +94,71 @@ async def yahoo_headlines(http, symbol: str) -> list[dict]:
     return [i for i in items if not i["published"] or i["published"] >= cutoff]
 
 
+async def bing_headlines(http, query: str) -> list[dict]:
+    text = await get_text(http, BING_NEWS, q=query, format="rss", qft='interval="7"')
+    cutoff = now_ms() - 2 * DAY_MS
+    items = []
+    for i in parse_rss(text, limit=30):
+        # Bing wraps links in a click tracker; the real article address is its url= parameter
+        real = parse_qs(urlparse(i["url"]).query).get("url")
+        items.append(dict(i, url=real[0] if real else i["url"], source=i["source"] or urlparse(real[0] if real else i["url"]).netloc.removeprefix("www.")))
+    return [i for i in items if not i["published"] or i["published"] >= cutoff]
+
+
+def normal(title: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", title.lower())[:60]
+
+
+def merge(*lists: list[dict]) -> list[dict]:
+    """One copy of each story, keeping the copy that has a summary."""
+    best: dict[str, dict] = {}
+    for items in lists:
+        for i in items:
+            key = normal(i["title"])
+            if key not in best or (i.get("summary") and not best[key].get("summary")):
+                best[key] = i
+    return list(best.values())
+
+
+async def add_summaries(http, items: list[dict]) -> None:
+    """Fill missing summaries from each article's own preview text (Google News links cannot be opened this way)."""
+    async def one(i):
+        if i.get("summary") or not i["url"] or "news.google.com" in i["url"]:
+            return
+        try:
+            resp = await http.get(i["url"], timeout=6)
+            if resp.status_code == 200 and "html" in resp.headers.get("content-type", ""):
+                i["summary"] = meta_description(resp.text)
+        except Exception:
+            pass
+
+    await asyncio.gather(*(one(i) for i in items))
+
+
 async def news_factors(name: str, query: str, kind: str, yahoo: str | None = None, keywords: tuple[str, ...] = ()) -> tuple[list[Factor], list[str]]:
     missing = []
     queries = [query] + MACRO_QUERIES.get(kind, MACRO_QUERIES["stock"])
     async with client() as http:
-        jobs = [search(http, q) for q in queries]
+        jobs = [search(http, q) for q in queries] + [bing_headlines(http, name)]
         if yahoo:
             jobs.append(yahoo_headlines(http, yahoo))
         results = await asyncio.gather(*jobs, return_exceptions=True)
-    yahoo_items = results.pop() if yahoo else []
-    if isinstance(yahoo_items, Exception):
-        missing.append("Yahoo Finance headlines")
-        yahoo_items = []
-    asset_items = [] if isinstance(results[0], Exception) else results[0]
-    if isinstance(results[0], Exception):
-        missing.append("Google News (asset headlines)")
-    titles = {i["title"] for i in asset_items}
-    asset_items += [i for i in yahoo_items if i["title"] not in titles]
-    if keywords:
-        # keep only stories that actually name the asset; searches and feeds also return loosely related ones
-        asset_items = [i for i in asset_items if mentions(i["title"], keywords)]
+        yahoo_items = results.pop() if yahoo else []
+        bing_items = results.pop()
+        for got, label in ((yahoo_items, "Yahoo Finance headlines"), (bing_items, "Bing News headlines")):
+            if isinstance(got, Exception):
+                missing.append(label)
+        yahoo_items = [] if isinstance(yahoo_items, Exception) else yahoo_items
+        bing_items = [] if isinstance(bing_items, Exception) else bing_items
+        google_items = [] if isinstance(results[0], Exception) else results[0]
+        if isinstance(results[0], Exception):
+            missing.append("Google News (asset headlines)")
+        asset_items = [i for i in merge(yahoo_items, bing_items, google_items) if not JUNK.search(i["title"])]
+        if keywords:
+            # keep only stories that actually name the asset; searches and feeds also return loosely related ones
+            asset_items = [i for i in asset_items if mentions(i["title"], keywords)]
+        newest = sorted(asset_items, key=lambda i: -(i["published"] or 0))[:NEWS_SHOWN]
+        await add_summaries(http, newest)
     macro_items, seen = [], set()
     for r in results[1:]:
         if isinstance(r, Exception):
@@ -119,7 +171,7 @@ async def news_factors(name: str, query: str, kind: str, yahoo: str | None = Non
         missing.append("Google News (macro and political headlines)")
     factors = []
     if asset_items or not isinstance(results[0], Exception):
-        factors.append(headline_factor("news", "News", f"Latest on {name}", asset_items, weight=1.0, show=10))
+        factors.append(headline_factor("news", "News", f"Latest on {name}", asset_items, weight=1.0, show=NEWS_SHOWN))
     if macro_items:
         label = "Crypto-wide: Fed, regulation and ETF flows" if kind == "crypto" else "Market-wide: Fed, inflation, trade and politics"
         factors.append(headline_factor("macro_news", "Macro and politics", label, macro_items, weight=0.8))
