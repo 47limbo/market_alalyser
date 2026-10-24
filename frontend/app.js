@@ -27,6 +27,7 @@
     entry: "#2962ff",
     stop: "#f23645",
     target: "#089981",
+    labelBg: dark ? "rgba(28,29,33,0.92)" : "rgba(255,255,255,0.92)",
   };
 
 
@@ -50,6 +51,7 @@
 
   const RECENT = 150; // candles back for markers and zones, so the chart stays readable
   const MAX_ZONES = 8;
+  const STRUCTURE_LABELS = 6; // only the latest breaks are labelled
 
   let state = { coin: "BTC", interval: "15m", report: null, demo: false, context: null, research: false };
   let ws = null;
@@ -336,6 +338,19 @@
     if (yy != null && yy > 0 && yy < plotBottom()) tags.push({ y: yy, text, bg, fg, priority });
   }
 
+  // highest high (or lowest low) of the candles from the broken swing to a few candles after the break
+  function extremeBetween(t0, t1, high) {
+    const ks = state.report.candles;
+    const step = ks.length > 1 ? ks[1].t - ks[0].t : 0;
+    let best = null;
+    for (const k of ks) {
+      if (k.t < t0 || k.t > t1 + 3 * step) continue;
+      const v = high ? k.h : k.l;
+      if (best == null || (high ? v > best : v < best)) best = v;
+    }
+    return best;
+  }
+
   function pill(px, py, text, bg, fg, align = "left") {
     ctx.font = "600 11px system-ui, sans-serif";
     const w = ctx.measureText(text).width + 10, h = 16;
@@ -499,20 +514,52 @@
     }
 
     if (layerOn("structure")) {
+      // Each break gets a small outlined label clear of the candles: above the highs for a bullish
+      // break, below the lows for a bearish one, tied to the middle of its level by a thin leader line.
       const boxes = [];
-      for (const e of r.structure.filter((e) => e.time >= since).slice(-8).reverse()) {
+      const events = r.structure.filter((e) => e.time >= since).slice(-STRUCTURE_LABELS);
+      for (const e of events.reverse()) {
         const bull = e.direction === "bullish";
         const color = bull ? C.bull : C.bear;
         hline(e.swing_time, e.time, e.level, color, e.type === "CHoCH" ? [5, 3] : [], 1.5);
-        const x1 = x(e.time), yy = y(e.level);
+        const x0 = x(e.swing_time), x1 = x(e.time), yy = y(e.level);
         if (x1 == null || yy == null) continue;
-        // tag at the break candle, just off the line; skipped if it would cover a newer tag
-        const py = bull ? yy - 11 : yy + 11;
-        ctx.font = "600 11px system-ui, sans-serif";
-        const bw = ctx.measureText(e.type).width + 10;
-        if (boxes.some((b) => x1 + 4 < b.x + b.w && b.x < x1 + 4 + bw && Math.abs(b.y - py) < 17)) continue;
-        boxes.push({ x: x1 + 4, y: py, w: bw });
-        pill(x1 + 4, py, e.type, color, "#ffffff");
+        const ax = x0 == null ? x1 : (Math.max(x0, 0) + x1) / 2;
+        const ext = extremeBetween(e.swing_time, e.time, bull);
+        const text = `${bull ? "▲" : "▼"} ${e.type}`;
+        ctx.font = "600 10px system-ui, sans-serif";
+        const w = ctx.measureText(text).width + 10, h = 15;
+        // sweep arrows sit on the same side (above bars for bearish sweeps, below for bullish), so clear them too
+        const step = r.candles[1].t - r.candles[0].t;
+        const perCandle = {};
+        if (layerOn("sweeps")) for (const sw of r.sweeps) {
+          if ((sw.direction === "bullish") !== bull && sw.time >= e.swing_time && sw.time <= e.time + 3 * step) perCandle[sw.time] = (perCandle[sw.time] ?? 0) + 1;
+        }
+        const arrows = Math.max(0, ...Object.values(perCandle));
+        let py = (ext == null ? yy : y(ext)) + (bull ? -1 : 1) * (22 + arrows * 12);
+        let left = ax - w / 2;
+        // step further out until the label is clear of the labels already drawn
+        for (let i = 0; i < 4 && boxes.some((b) => left < b.x + b.w + 4 && b.x < left + w + 4 && Math.abs(b.y - py) < h + 2); i++) py += bull ? -(h + 3) : h + 3;
+        boxes.push({ x: left, y: py, w });
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.7;
+        ctx.setLineDash([2, 2]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(ax, py + (bull ? h / 2 : -h / 2));
+        ctx.lineTo(ax, yy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = C.labelBg;
+        ctx.beginPath();
+        ctx.roundRect(left, py - h / 2, w, h, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, left + 5, py + 0.5);
+        ctx.textBaseline = "alphabetic";
       }
     }
 
