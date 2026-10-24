@@ -89,3 +89,32 @@ def test_yahoo_parse_and_4h_resample():
     assert len(candles) == 3 and candles[0] == Candle(0, 1, 2, 0.5, 2, 10)
     four = resample(candles, 4 * 3_600_000)
     assert four[0] == Candle(0, 1, 3, 0.5, 3, 30) and four[1].t == 14_400_000
+
+
+def test_yahoo_earnings_rows():
+    from datetime import datetime
+
+    from app.context.earnings import yahoo_rows
+    rows = [(datetime(2026, 11, 19, 16, 0), 1.25, None), (datetime(2026, 8, 27, 16, 0), 1.0, 1.05), (datetime(2026, 5, 28, 16, 0), 0.9, 0.96)]
+    cal, hist = yahoo_rows(rows, date(2026, 10, 24))
+    assert cal == [{"date": "2026-11-19", "hour": "amc", "epsEstimate": 1.25}]
+    assert hist[0]["actual"] == 1.05 and hist[0]["period"] == "Reported 27 Aug 2026"
+    nxt, eps = earnings_factors("NVDA", date(2026, 10, 24), cal, hist, {"title": "Yahoo", "url": "https://finance.yahoo.com"})
+    assert nxt.risk == 0 and eps.score > 0 and eps.sources[0]["title"] == "Yahoo"
+
+
+def test_sec_results_from_filings():
+    from app.context.sec import recent_filings, sec_factor
+    facts = {"facts": {"us-gaap": {
+        "EarningsPerShareDiluted": {"units": {"USD/shares": [
+            {"frame": "CY2025Q2", "val": 0.5}, {"frame": "CY2026Q2", "val": 0.75}, {"frame": "CY2025", "val": 2.0}, {"val": 9}]}},
+        "Revenues": {"units": {"USD": [{"frame": "CY2025Q2", "val": 10e9}, {"frame": "CY2026Q2", "val": 12e9}]}},
+    }}}
+    sub = {"filings": {"recent": {"form": ["4", "8-K", "8-K", "10-Q"], "filingDate": ["2026-09-01", "2026-08-28", "2026-08-27", "2026-08-26"],
+           "accessionNumber": ["a", "0001-26-1", "0001-26-2", "0001-26-3"], "primaryDocument": ["x", "pr.htm", "other.htm", "q.htm"],
+           "items": ["", "2.02,9.01", "5.02", ""]}}}
+    filings = recent_filings(sub, 1045810)
+    assert [f["form"] for f in filings] == ["8-K", "10-Q"] and filings[0]["url"].endswith("/1045810/0001261/pr.htm")
+    f = sec_factor("NVDA", facts, filings)
+    assert "Q2 2026" in f.detail and "+50%" in f.detail and "$12.0bn (+20%)" in f.detail and f.score > 0.5
+    assert f.sources[0]["title"] == "8-K filed 2026-08-28 (earnings release)"

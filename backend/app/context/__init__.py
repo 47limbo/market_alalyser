@@ -15,6 +15,7 @@ from .earnings import fetch_earnings
 from .factor import Factor
 from .macro import fomc_factor, macro_factors
 from .news import news_factors
+from .sec import sec_factors
 from .research import ResearchUnavailable, available as research_available, brief_factor, deep_research
 
 CACHE_SECONDS = 600
@@ -28,9 +29,9 @@ __all__ = ["get_context", "run_research", "research_status", "score_setup", "Res
 
 async def _gather(asset: Asset) -> tuple[list[Factor], list[str]]:
     today = datetime.now(timezone.utc).date()
-    jobs = [macro_factors(asset.kind, today), news_factors(asset.name, asset.news_query, asset.kind)]
+    jobs = [macro_factors(asset.kind, today), news_factors(asset.name, asset.news_query, asset.kind, asset.yahoo)]
     if asset.kind == "stock":
-        jobs.append(fetch_earnings(asset.ticker, today))
+        jobs += [fetch_earnings(asset.ticker, today), sec_factors(asset.ticker)]
     factors, missing = [], []
     for got in await asyncio.gather(*jobs, return_exceptions=True):
         if isinstance(got, Exception):

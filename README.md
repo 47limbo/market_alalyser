@@ -52,18 +52,19 @@ For the selected asset, `backend/app/context/` gathers, in parallel and cached f
 | --- | --- | --- |
 | 10-year and 2-year yields, Fed funds, VIX, dollar | FRED (free, no key) | Rising yields, a rising dollar and a high VIX lean bearish; falling ones lean bullish |
 | Next Fed decision and latest Fed releases | Built-in 2026 FOMC calendar, Federal Reserve RSS | Event risk in the 7 days before a decision |
-| Asset headlines | Google News RSS, last 2 days | Keyword tone, weighted low, headlines linked |
+| Asset headlines | Google News and Yahoo Finance RSS, last 2 days | Keyword tone, weighted low, headlines linked |
 | Fed, inflation, jobs, tariffs, Congress and White House headlines (crypto: regulation and ETF flows) | Google News RSS | Same |
-| Next earnings date, EPS surprises (stocks) | Finnhub, optional free key | Event risk within 7 days of a report; recent beats lean bullish |
+| Next earnings date, EPS estimates and surprises (stocks) | Yahoo Finance (no key), or Finnhub if you add a free key | Event risk within 7 days of a report; recent beats lean bullish |
+| Reported EPS and revenue growth, latest 10-Q, 10-K and earnings 8-K (stocks) | SEC EDGAR filings (no key) | Growth on a year earlier leans bullish |
 | Deep research | Claude with web search, optional key | Cited bull and bear case, catalysts, a bias that counts most in the score |
 
 The **Confidence** card blends the two halves for each direction: up to 60 points from the Entry Check, up to 40 from how far the context leans the same way, minus up to 25 for earnings or a Fed decision in the next few days, and capped at 40 when the chart has no setup. Every input is listed under the chart with which way it leans and a link to its source. A source that cannot be reached is named and left out.
 
 #### Optional keys
 
-Copy `.env.example` to `.env` next to `run.py` and fill in what you want, then restart:
+Everything above works without keys. Only Deep research costs money. Copy `.env.example` to `.env` next to `run.py` and fill in what you want, then restart:
 
-- `FINNHUB_API_KEY`: free at [finnhub.io](https://finnhub.io/register), for earnings dates and EPS.
+- `FINNHUB_API_KEY`: not needed (Yahoo Finance and SEC filings cover earnings). Free at [finnhub.io](https://finnhub.io/register) if you prefer it as the earnings source.
 - `ANTHROPIC_API_KEY`: from [console.anthropic.com](https://console.anthropic.com/), for the Deep research button. It uses `claude-opus-5-5` with web search (up to 10 searches a run) and server-side fallback, so if the model declines a request the API retries it on the model Anthropic recommends. Each run uses API credit. Change the model or effort with `MA_RESEARCH_MODEL` and `MA_RESEARCH_EFFORT`.
 
 ## Run it

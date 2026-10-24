@@ -1,5 +1,11 @@
-"""Earnings date and recent EPS surprises from Finnhub (free key, optional: set FINNHUB_API_KEY)."""
+"""Earnings date and recent EPS surprises.
 
+Keyless by default: Yahoo Finance's earnings calendar (through the yfinance package). If you set a free
+FINNHUB_API_KEY it is used instead. Reported results straight from SEC filings are in sec.py.
+"""
+
+import asyncio
+import math
 import os
 from datetime import date, timedelta
 
@@ -9,9 +15,10 @@ from .feeds import client
 FINNHUB = "https://finnhub.io/api/v1"
 
 
-def earnings_factors(symbol: str, today: date, calendar: list[dict], history: list[dict]) -> list[Factor]:
+def earnings_factors(symbol: str, today: date, calendar: list[dict], history: list[dict], link: dict | None = None) -> list[Factor]:
+    """calendar: upcoming {date, hour (bmo/amc), epsEstimate}; history: newest first {actual, estimate, period}."""
     out = []
-    link = {"title": f"{symbol} earnings on Finnhub", "url": f"https://finnhub.io/quote/{symbol}"}
+    link = link or {"title": f"{symbol} earnings on Finnhub", "url": f"https://finnhub.io/quote/{symbol}"}
     upcoming = sorted((c for c in calendar if c.get("date") and c["date"] >= today.isoformat()), key=lambda c: c["date"])
     if upcoming:
         nxt = upcoming[0]
@@ -39,11 +46,49 @@ def earnings_factors(symbol: str, today: date, calendar: list[dict], history: li
     return out
 
 
+def _num(x) -> float | None:
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(x) else x
+
+
+def yahoo_rows(rows: list[tuple], today: date) -> tuple[list[dict], list[dict]]:
+    """(datetime in New York time, EPS estimate, reported EPS) rows into calendar and newest-first history."""
+    calendar, history = [], []
+    for when, estimate, actual in sorted(rows, key=lambda r: r[0], reverse=True):
+        day = when.date()
+        if actual is not None:
+            history.append({"actual": actual, "estimate": estimate, "period": f"Reported {day:%d %b %Y}"})
+        elif day >= today:
+            calendar.append({"date": day.isoformat(), "hour": "bmo" if when.hour < 12 else "amc", "epsEstimate": estimate})
+    return calendar, history
+
+
+def _yahoo_fetch(symbol: str) -> list[tuple]:
+    import yfinance  # handles Yahoo's cookie handshake, which plain requests no longer pass
+
+    df = yfinance.Ticker(symbol).get_earnings_dates(limit=12)
+    if df is None or df.empty:
+        return []
+    return [(ts.to_pydatetime(), _num(r.get("EPS Estimate")), _num(r.get("Reported EPS"))) for ts, r in df.iterrows()]
+
+
+async def yahoo_earnings(symbol: str, today: date) -> list[Factor]:
+    rows = await asyncio.wait_for(asyncio.to_thread(_yahoo_fetch, symbol), timeout=20)
+    calendar, history = yahoo_rows(rows, today)
+    link = {"title": f"{symbol} earnings on Yahoo Finance", "url": f"https://finance.yahoo.com/quote/{symbol}/analysis/"}
+    return earnings_factors(symbol, today, calendar, history, link)
+
+
 async def fetch_earnings(symbol: str, today: date) -> tuple[list[Factor], list[str]]:
     key = os.environ.get("FINNHUB_API_KEY", "").strip()
     if not key:
-        return [Factor("earnings_next", "Earnings", "Earnings",
-                       "Add a free FINNHUB_API_KEY to .env for earnings dates and EPS surprises, or run Deep research.")], []
+        try:
+            return await yahoo_earnings(symbol, today), []
+        except Exception:
+            return [], ["Yahoo Finance earnings calendar"]
     try:
         async with client() as http:
             cal = await http.get(f"{FINNHUB}/calendar/earnings", params={

@@ -165,7 +165,7 @@ def open_browser_when_ready(port: int) -> None:
 def main() -> None:
     ensure_environment()
     env = {**read_env_file(), **os.environ}
-    for key, what in (("FINNHUB_API_KEY", "earnings dates and EPS"), ("ANTHROPIC_API_KEY", "Deep research")):
+    for key, what in (("ANTHROPIC_API_KEY", "Deep research"),):
         print(f"  {what}: {'on' if env.get(key) else f'off (add {key} to .env to turn on)'}")
     if "--demo" in sys.argv:
         env["MA_DEMO"] = "1"

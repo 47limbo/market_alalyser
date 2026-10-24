@@ -1,4 +1,4 @@
-"""Headlines from Google News RSS, scored with a small finance word list.
+"""Headlines from Google News and Yahoo Finance RSS, scored with a small finance word list.
 
 Headline scoring is crude on purpose: it reads tone, not meaning. It is one input among many, weighted
 low, and the headlines are listed so you can read them yourself. Deep research reads the stories properly.
@@ -11,6 +11,7 @@ from .factor import Factor, clamp
 from .feeds import client, get_text, now_ms, parse_rss
 
 GOOGLE_NEWS = "https://news.google.com/rss/search"
+YAHOO_NEWS = "https://feeds.finance.yahoo.com/rss/2.0/headline"
 DAY_MS = 86_400_000
 
 # phrase -> tone, checked longest first so "rate cut" wins over "cut"
@@ -74,14 +75,30 @@ async def search(http, query: str) -> list[dict]:
     return [i for i in parse_rss(text, limit=40) if not i["published"] or i["published"] >= cutoff]
 
 
-async def news_factors(name: str, query: str, kind: str) -> tuple[list[Factor], list[str]]:
+async def yahoo_headlines(http, symbol: str) -> list[dict]:
+    text = await get_text(http, YAHOO_NEWS, s=symbol, region="US", lang="en-US")
+    cutoff = now_ms() - 2 * DAY_MS
+    items = [dict(i, source=i["source"] or "Yahoo Finance") for i in parse_rss(text, limit=30)]
+    return [i for i in items if not i["published"] or i["published"] >= cutoff]
+
+
+async def news_factors(name: str, query: str, kind: str, yahoo: str | None = None) -> tuple[list[Factor], list[str]]:
     missing = []
     queries = [query] + MACRO_QUERIES.get(kind, MACRO_QUERIES["stock"])
     async with client() as http:
-        results = await asyncio.gather(*(search(http, q) for q in queries), return_exceptions=True)
+        jobs = [search(http, q) for q in queries]
+        if yahoo:
+            jobs.append(yahoo_headlines(http, yahoo))
+        results = await asyncio.gather(*jobs, return_exceptions=True)
+    yahoo_items = results.pop() if yahoo else []
+    if isinstance(yahoo_items, Exception):
+        missing.append("Yahoo Finance headlines")
+        yahoo_items = []
     asset_items = [] if isinstance(results[0], Exception) else results[0]
     if isinstance(results[0], Exception):
         missing.append("Google News (asset headlines)")
+    titles = {i["title"] for i in asset_items}
+    asset_items += [i for i in yahoo_items if i["title"] not in titles]
     macro_items, seen = [], set()
     for r in results[1:]:
         if isinstance(r, Exception):
@@ -93,7 +110,7 @@ async def news_factors(name: str, query: str, kind: str) -> tuple[list[Factor], 
     if all(isinstance(r, Exception) for r in results[1:]):
         missing.append("Google News (macro and political headlines)")
     factors = []
-    if not isinstance(results[0], Exception):
+    if asset_items or not isinstance(results[0], Exception):
         factors.append(headline_factor("news", "News", f"{name} headlines", asset_items, weight=1.0))
     if macro_items:
         factors.append(headline_factor("macro_news", "Macro and politics", "Fed, inflation, trade and policy headlines", macro_items, weight=0.8))
