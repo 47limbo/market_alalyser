@@ -4,7 +4,7 @@ A market analysis app for crypto and stock perpetuals. It loads live candles fro
 
 **Analysis only.** The app has no order code and needs no trading keys. Nothing it shows is financial advice.
 
-## What it does so far (phases 1 to 3)
+## What it does so far
 
 | Detector | What you see on the chart |
 | --- | --- |
@@ -40,6 +40,32 @@ The side panel shows current structure, where price sits in the dealing range, t
 
 Steps 3 to 6 plus the reward-to-risk rule are required. A setup shows as **forming** while it waits for the pullback and **ready** once price is in the zone; a close beyond the stop cancels it. The other steps add to the score. Change the minimum with `?min_rr=` on `/api/analysis`.
 
+### Watchlist
+
+One click loads each of NVDA, TSLA, AAPL, AMD, MSFT, AMZN, META, PLTR, GOOGL, SPY, QQQ, IWM, BTC and SOL (`backend/app/watchlist.py`). Stocks chart from Hyperliquid's 24/7 stock perps (`xyz:NVDA` and so on), the index ETFs from the index perps (SPY → `mkts:US500`, QQQ → `mkts:USTECH`, IWM → `mkts:SMALL2000`). If a Hyperliquid market fails to load, the chart falls back to the real share or ETF from Yahoo Finance (regular hours only, refreshed every minute).
+
+### News and macro context, and confidence
+
+For the selected asset, `backend/app/context/` gathers, in parallel and cached for 10 minutes:
+
+| Input | Source | Effect |
+| --- | --- | --- |
+| 10-year and 2-year yields, Fed funds, VIX, dollar | FRED (free, no key) | Rising yields, a rising dollar and a high VIX lean bearish; falling ones lean bullish |
+| Next Fed decision and latest Fed releases | Built-in 2026 FOMC calendar, Federal Reserve RSS | Event risk in the 7 days before a decision |
+| Asset headlines | Google News RSS, last 2 days | Keyword tone, weighted low, headlines linked |
+| Fed, inflation, jobs, tariffs, Congress and White House headlines (crypto: regulation and ETF flows) | Google News RSS | Same |
+| Next earnings date, EPS surprises (stocks) | Finnhub, optional free key | Event risk within 7 days of a report; recent beats lean bullish |
+| Deep research | Claude with web search, optional key | Cited bull and bear case, catalysts, a bias that counts most in the score |
+
+The **Confidence** card blends the two halves for each direction: up to 60 points from the Entry Check, up to 40 from how far the context leans the same way, minus up to 25 for earnings or a Fed decision in the next few days, and capped at 40 when the chart has no setup. Every input is listed under the chart with which way it leans and a link to its source. A source that cannot be reached is named and left out.
+
+#### Optional keys
+
+Copy `.env.example` to `.env` next to `run.py` and fill in what you want, then restart:
+
+- `FINNHUB_API_KEY`: free at [finnhub.io](https://finnhub.io/register), for earnings dates and EPS.
+- `ANTHROPIC_API_KEY`: from [console.anthropic.com](https://console.anthropic.com/), for the Deep research button. It uses `claude-opus-5-5` with web search (up to 10 searches a run) and server-side fallback, so if the model declines a request the API retries it on the model Anthropic recommends. Each run uses API credit. Change the model or effort with `MA_RESEARCH_MODEL` and `MA_RESEARCH_EFFORT`.
+
 ## Run it
 
 Needs Python 3.10 or newer ([python.org/downloads](https://www.python.org/downloads/)).
@@ -51,7 +77,7 @@ Needs Python 3.10 or newer ([python.org/downloads](https://www.python.org/downlo
 
 The first start creates a private environment in `.venv` and installs the packages (about a minute). After that it starts straight away and opens http://localhost:8000 in your browser. Keep the window open while you use the app; press Ctrl+C in it to stop.
 
-Type a market (`BTC`, `ETH`, `SOL`, or a stock perp such as `xyz:NVDA`) and pick a timeframe. The chart updates live over Hyperliquid's websocket, and the detectors re-run each time a candle closes.
+Click a ticker in the watchlist, or type any Hyperliquid market (`ETH`, `HYPE`, `xyz:NVDA`), and pick a timeframe. The chart updates live over Hyperliquid's websocket, and the detectors re-run each time a candle closes.
 
 ## Tests
 
@@ -67,12 +93,15 @@ The tests build small hand-made candle sequences and check each rule, plus a che
 backend/app/hyperliquid.py   read-only candle client (public /info endpoint)
 backend/app/detectors/       structure, zones, liquidity, sessions, volume, indicators
 backend/app/analyze.py       runs all detectors and returns one report
-backend/app/main.py          FastAPI: /api/candles, /api/analysis, serves the frontend
+backend/app/watchlist.py     the 14 tickers and their chart markets
+backend/app/yahoo.py         fallback candles from Yahoo Finance
+backend/app/context/         yields, Fed, earnings, headlines, deep research, confidence score
+backend/app/main.py          FastAPI: /api/candles, /api/analysis, /api/context, /api/research, serves the frontend
 frontend/                    chart page (TradingView Lightweight Charts 4.2.3, vendored)
 ```
 
 ## Next
 
-Phase 4 adds the backtester, phase 5 the fundamental and macro Bias Score, and phase 6 the AI analyst brief.
+Phase 4 adds the backtester. The news and macro layer above covers the start of phases 5 and 6; next would be fuller fundamentals (valuation, revisions, insider and institutional flows) and positioning data.
 
 Charts by [TradingView](https://www.tradingview.com/) Lightweight Charts™ (Apache 2.0, see `frontend/vendor/LIGHTWEIGHT-CHARTS-LICENSE`).

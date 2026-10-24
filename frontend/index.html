@@ -12,8 +12,10 @@
     <form id="controls">
       <label>Market <input id="coin" value="BTC" list="coins" autocomplete="off"></label>
       <datalist id="coins">
-        <option value="BTC"><option value="ETH"><option value="SOL"><option value="HYPE">
-        <option value="xyz:NVDA"><option value="xyz:TSLA"><option value="xyz:AAPL">
+        <option value="NVDA"><option value="TSLA"><option value="AAPL"><option value="AMD"><option value="MSFT">
+        <option value="AMZN"><option value="META"><option value="PLTR"><option value="GOOGL">
+        <option value="SPY"><option value="QQQ"><option value="IWM"><option value="BTC"><option value="SOL">
+        <option value="ETH"><option value="HYPE">
       </datalist>
       <label>Timeframe
         <select id="interval">
@@ -24,6 +26,7 @@
       <button type="submit">Load</button>
       <span id="status" role="status"></span>
     </form>
+    <nav id="watchlist" aria-label="Watchlist"></nav>
   </header>
 
   <main>
@@ -31,6 +34,12 @@
     <section id="chart-wrap">
       <div id="chart"></div>
       <canvas id="overlay"></canvas>
+    </section>
+
+    <section id="context" class="card">
+      <h2>News and macro behind the entry</h2>
+      <p class="lead">What could move this market apart from the chart: yields, the Fed, earnings, headlines and politics. Each item says which way it leans and links to where it came from.</p>
+      <div id="context-body"></div>
     </section>
 
     <section id="glossary" class="card">
@@ -171,6 +180,20 @@
         <dt>ATR (14)</dt><dd>Average candle range over the last 14 candles. Used to size gaps, stops and "how far is far".</dd>
         <dt>Relative volume</dt><dd>This candle's volume against the average of the last 20. Above 1.5x means unusual activity.</dd>
       </dl>
+
+      <h3>News, macro and confidence</h3>
+      <dl class="defs">
+        <dt>Confidence</dt><dd>0 to 100 for each direction. Up to 60 points come from the Entry Check (how many chart checks pass), up to 40 from the news and macro context (how far it leans the same way), and up to 25 points come off when earnings or a Fed decision is days away. With no setup on the chart it stays at 40 or below. 70+ is high, 50 to 69 medium, under 50 low. It never tells you to trade: it tells you how much the evidence agrees.</dd>
+        <dt>10-year and 2-year yields</dt><dd>What the US government pays to borrow. Rising yields make future profits worth less today, which weighs hardest on tech, growth stocks, small caps and crypto. The 2-year follows what traders expect the Fed to do.</dd>
+        <dt>Yield curve</dt><dd>The 10-year minus the 2-year. Below zero (inverted) has often come before slowdowns. Shown for context, not scored.</dd>
+        <dt>Fed decision (FOMC)</dt><dd>Eight meetings a year set US interest rates. The statement lands at 2 pm New York time and price often swings both ways for an hour or more, so entries just before it carry extra risk.</dd>
+        <dt>VIX</dt><dd>The market's expected volatility for the S&amp;P 500. Under 15 is calm, over 25 is fear, when stops get hit more and moves run further.</dd>
+        <dt>US dollar</dt><dd>A rising dollar tightens money worldwide and tends to weigh on crypto and on companies that sell abroad.</dd>
+        <dt>Earnings and EPS</dt><dd>Earnings per share against what analysts expected. A beat with raised guidance tends to lift the shares for weeks; a miss can gap them through any stop. The app flags reports within 7 days.</dd>
+        <dt>Headline tone</dt><dd>Recent Google News headlines scored from finance keywords (beats, downgrade, tariffs, rate cut…). It is rough and weighted low; read the stories it links.</dd>
+        <dt>Politics and policy</dt><dd>Tariffs, export controls, budget fights, regulation and elections. They arrive in the macro headlines, and Deep research reads them in depth.</dd>
+        <dt>Deep research</dt><dd>Optional. Claude searches the web, reads the sources and writes a cited bull and bear case with upcoming catalysts. It counts as the heaviest context input for an hour.</dd>
+      </dl>
     </section>
     </div>
 
@@ -192,6 +215,11 @@
         <h2>Entry Check</h2>
         <div id="alert" role="status" hidden></div>
         <div id="setups"></div>
+      </section>
+
+      <section class="card" id="confidence-card">
+        <h2>Confidence</h2>
+        <div id="confidence"></div>
       </section>
 
       <section class="card">

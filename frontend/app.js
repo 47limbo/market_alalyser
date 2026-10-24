@@ -51,10 +51,11 @@
   const RECENT = 150; // candles back for markers and zones, so the chart stays readable
   const MAX_ZONES = 8;
 
-  let state = { coin: "BTC", interval: "15m", report: null, demo: false };
+  let state = { coin: "BTC", interval: "15m", report: null, demo: false, context: null, research: false };
   let ws = null;
   let lastBarTime = null;
   let refreshTimer = null;
+  let pollTimer = null;
 
   const layerOn = (name) => document.querySelector(`[data-layer="${name}"]`).checked;
   const sec = (ms) => Math.floor(ms / 1000);
@@ -79,7 +80,10 @@
     }
     render(true);
     connectLive();
-    setStatus(state.demo ? "Demo data (offline)" : `Live · ${state.coin} ${state.interval}`);
+    const from = { hyperliquid: `Live · ${state.report.asset.coin} on Hyperliquid`, yahoo: `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)`, demo: "Demo data (offline)" };
+    setStatus(`${from[state.report.source]} · ${state.interval}`);
+    markWatchlist();
+    loadContext();
   }
 
   function render(fit) {
@@ -109,6 +113,131 @@
     renderSummary(r);
     renderSetups(r);
     renderEvents(r);
+  }
+
+  // ---- watchlist ----
+
+  function renderWatchlist(list) {
+    const groups = { stock: "Stocks", etf: "Indexes", crypto: "Crypto" };
+    el("watchlist").innerHTML = Object.entries(groups).map(([kind, title]) =>
+      `<span class="wl-group" title="${title}">${list.filter((a) => a.kind === kind).map((a) =>
+        `<button type="button" class="chip" data-ticker="${a.ticker}" title="${a.name} · chart: ${a.coin}">${a.ticker}</button>`).join("")}</span>`).join("");
+    el("watchlist").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-ticker]");
+      if (!b) return;
+      el("coin").value = b.dataset.ticker;
+      load();
+    });
+  }
+
+  function markWatchlist() {
+    const t = state.report.asset.ticker;
+    document.querySelectorAll("#watchlist .chip").forEach((b) => b.classList.toggle("on", b.dataset.ticker === t));
+  }
+
+  // ---- news and macro context, and the confidence score ----
+
+  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const link = (s) => s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title);
+  const ago = (ms) => {
+    if (!ms) return "";
+    const h = (Date.now() - ms) / 3_600_000;
+    return h < 1 ? `${Math.max(1, Math.round(h * 60))}m ago` : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
+  };
+
+  async function loadContext() {
+    const ticker = state.report.asset.ticker;
+    if (!state.context || state.context.asset.ticker !== ticker) {
+      el("confidence").innerHTML = '<p class="muted">Reading the news, yields and Fed calendar…</p>';
+      el("context-body").innerHTML = "";
+    }
+    try {
+      const res = await fetch(`/api/context?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}`);
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+      const ctx = await res.json();
+      if (ctx.asset.ticker !== state.report.asset.ticker) return; // the user moved on
+      state.context = ctx;
+      renderConfidence(ctx);
+      renderContext(ctx);
+    } catch (err) {
+      el("confidence").innerHTML = `<p class="error">Could not load the news and macro context: ${esc(err.message)}</p>`;
+    }
+  }
+
+  function renderConfidence(ctx) {
+    const head = `<p class="ctx-bias">Context for ${esc(ctx.asset.ticker)}: <b class="${ctx.bias > 0.1 ? "bull" : ctx.bias < -0.1 ? "bear" : ""}">${ctx.bias_label}</b></p>`;
+    el("confidence").innerHTML = head + ctx.confidence.map((c) => {
+      const reasons = c.reasons.slice(0, 5).map((r) =>
+        `<li class="r-${r.effect}"><span>${{ supports: "▲", against: "▼", risk: "!" }[r.effect]}</span>${esc(r.label)}${r.points != null ? ` <small>${r.points}</small>` : ""}</li>`).join("");
+      return `<div class="conf">
+        <div class="conf-head"><span class="${c.direction === "long" ? "bull" : "bear"}">${c.direction === "long" ? "Long" : "Short"}</span>
+          <span class="conf-num grade-${c.grade}">${c.confidence}<small>/100 ${c.grade}</small></span></div>
+        <div class="conf-bar" title="chart ${c.chart_points} + context ${c.context_points} − event risk ${c.event_penalty}">
+          <i class="b-chart" style="width:${c.chart_points}%"></i><i class="b-ctx" style="width:${Math.max(0, c.context_points - c.event_penalty)}%"></i><i class="b-risk" style="width:${Math.min(c.event_penalty, c.context_points)}%"></i></div>
+        <p class="conf-split">Chart ${Math.round(c.chart_points)}/60 · Context ${Math.round(c.context_points)}/40${c.event_penalty ? ` · Event risk −${Math.round(c.event_penalty)}` : ""}${c.status === "none" ? " · capped at 40 without a setup" : ""}</p>
+        <p class="conf-verdict">${esc(c.verdict)}</p>
+        <ul class="reasons">${reasons}</ul></div>`;
+    }).join("") + '<p class="muted small">Details and sources are under the chart.</p>';
+  }
+
+  function renderContext(ctx) {
+    const signal = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", risk: "Event risk" };
+    let html = "";
+    {
+      const factors = ctx.factors.filter((f) => f.group !== "Deep research");
+      html += `<div class="factors">` + factors.map((f) => {
+        const isNews = f.group === "News" || f.group === "Macro and politics";
+        const sources = f.sources.length ? (isNews
+          ? `<ul class="headlines">${f.sources.map((s) => `<li><span class="tone ${s.tone > 0 ? "bull" : s.tone < 0 ? "bear" : ""}">${s.tone > 0 ? "▲" : s.tone < 0 ? "▼" : "•"}</span>${link(s)} <small>${esc(s.source)} ${ago(s.published)}</small></li>`).join("")}</ul>`
+          : `<p class="src">Source: ${f.sources.map(link).join(" · ")}</p>`) : "";
+        return `<article class="factor"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)}</p>${sources}</article>`;
+      }).join("") + "</div>";
+    }
+    html += renderResearch(ctx);
+    if (ctx.missing.length) html += `<p class="muted small">Not reachable just now, left out of the score: ${ctx.missing.map(esc).join("; ")}.</p>`;
+    html += `<p class="muted small">${ctx.demo ? "Demo mode: these numbers are made up so you can see the layout." : `Fetched ${ago(ctx.fetched)}; refreshed every 10 minutes.`} Headline tone is read from keywords, so open the stories before relying on them.</p>`;
+    el("context-body").innerHTML = html;
+    const btn = el("research-btn");
+    if (btn) btn.addEventListener("click", runResearch);
+  }
+
+  function renderResearch(ctx) {
+    const b = ctx.research;
+    let html = '<h3>Deep research</h3>';
+    if (!b) {
+      if (!ctx.research_available) {
+        return html + '<p class="muted">Claude can search the web and read the stories for you, then write a cited bull and bear case. Add <code>ANTHROPIC_API_KEY=...</code> to the <code>.env</code> file next to run.py and restart to turn it on. Each run costs a few cents to a few dimes of API credit.</p>';
+      }
+      const running = state.research || ctx.research_running;
+      return html + `<p class="muted">Claude searches the web (earnings, yields, the Fed, politics, company news), reads the sources and writes a cited brief. Takes 1 to 3 minutes and uses API credit.</p>
+        <button type="button" id="research-btn" ${running ? "disabled" : ""}>${running ? "Researching…" : `Deep research ${esc(ctx.asset.ticker)}`}</button>`;
+    }
+    const list = (xs) => (xs || []).map((x) => `<li>${esc(x)}</li>`).join("");
+    const catalysts = (b.catalysts || []).map((c) => `<li><b>${esc(c.date)}</b> ${esc(c.event)}<small>${esc(c.why_it_matters)}</small></li>`).join("");
+    const sources = (b.sources || []).slice(0, 12).map((s) => `<li>${link(s)}${s.cited ? "" : ' <small>(searched)</small>'}</li>`).join("");
+    return html + `<div class="brief">
+      <p><span class="sig sig-${b.bias === "bullish" ? "bullish" : b.bias === "bearish" ? "bearish" : "neutral"}">${esc(b.bias)} ${esc(b.strength)}/100</span> ${esc(b.summary)}</p>
+      <div class="cases"><div><h4 class="bull">Bull case</h4><ul>${list(b.bull_case)}</ul></div><div><h4 class="bear">Bear case</h4><ul>${list(b.bear_case)}</ul></div></div>
+      ${b.rates_and_fed ? `<p><b>Rates and Fed.</b> ${esc(b.rates_and_fed)}</p>` : ""}
+      ${b.politics ? `<p><b>Politics.</b> ${esc(b.politics)}</p>` : ""}
+      ${b.next_earnings ? `<p><b>Next earnings.</b> ${esc(b.next_earnings)}</p>` : ""}
+      ${catalysts ? `<h4>Coming up</h4><ul class="catalysts">${catalysts}</ul>` : ""}
+      <h4>Sources</h4><ol class="sources">${sources}</ol>
+      <p class="muted small">${esc(b.searches)} web searches by ${esc(b.model)}, ${ago(b.created)}. Counts toward the score for an hour.
+        <button type="button" id="research-btn" class="link-btn">Run again</button></p></div>`;
+  }
+
+  async function runResearch() {
+    state.research = true;
+    renderContext(state.context);
+    try {
+      const res = await fetch(`/api/research?coin=${encodeURIComponent(state.coin)}`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    } catch (err) {
+      setStatus(`Deep research failed: ${err.message}`, true);
+    }
+    state.research = false;
+    loadContext();
   }
 
   function short(source) {
@@ -438,15 +567,18 @@
 
   function connectLive() {
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
-    if (state.demo) return;
-    const sub = { type: "candle", coin: state.coin, interval: state.interval };
+    clearInterval(pollTimer);
+    if (state.report.source === "yahoo") { pollTimer = setInterval(refresh, 60_000); return; }
+    if (state.report.source !== "hyperliquid") return;
+    const coin = state.report.asset.coin;
+    const sub = { type: "candle", coin, interval: state.interval };
     ws = new WebSocket(HL_WS);
     ws.onopen = () => ws.send(JSON.stringify({ method: "subscribe", subscription: sub }));
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
       if (data.channel !== "candle") return;
       const k = data.data;
-      if (k.s !== state.coin || k.i !== state.interval) return;
+      if (k.s !== coin || k.i !== state.interval) return;
       const t = Number(k.t);
       candles.update({ time: sec(t), open: +k.o, high: +k.h, low: +k.l, close: +k.c });
       volume.update({ time: sec(t), value: +k.v, color: +k.c >= +k.o ? "rgba(8,153,129,0.3)" : "rgba(242,54,69,0.3)" });
@@ -464,7 +596,7 @@
   async function refresh() {
     try {
       const res = await fetch(`/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500`);
-      if (res.ok) { state.report = await res.json(); render(false); }
+      if (res.ok) { state.report = await res.json(); render(false); loadContext(); }
     } catch { /* keep the last good report */ }
   }
 
@@ -495,5 +627,5 @@
   resizeOverlay();
   requestAnimationFrame(loop);
 
-  fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; load(); });
+  fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; renderWatchlist(cfg.watchlist); load(); });
 })();

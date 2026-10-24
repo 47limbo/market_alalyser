@@ -3,6 +3,9 @@
     python3 run.py            live Hyperliquid data
     python3 run.py --demo     offline demo data
 
+Optional keys (Finnhub for earnings, Anthropic for Deep research) go in a .env file next to this one;
+see .env.example.
+
 Uses only the standard library, so it works before anything is installed.
 """
 
@@ -94,6 +97,22 @@ def ensure_environment() -> None:
         STAMP.write_text(wanted)
 
 
+def read_env_file() -> dict[str, str]:
+    """KEY=value lines from .env, ignoring blanks, comments and empty values."""
+    path = ROOT / ".env"
+    if not path.exists():
+        return {}
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            value = value.strip().strip('"').strip("'")
+            if value:
+                out[key.strip()] = value
+    return out
+
+
 def open_browser_when_ready() -> None:
     for _ in range(60):
         try:
@@ -106,7 +125,9 @@ def open_browser_when_ready() -> None:
 
 def main() -> None:
     ensure_environment()
-    env = dict(os.environ)
+    env = {**read_env_file(), **os.environ}
+    for key, what in (("FINNHUB_API_KEY", "earnings dates and EPS"), ("ANTHROPIC_API_KEY", "Deep research")):
+        print(f"  {what}: {'on' if env.get(key) else f'off (add {key} to .env to turn on)'}")
     if "--demo" in sys.argv:
         env["MA_DEMO"] = "1"
     print(f"Starting Market Analyser at {URL}  (press Ctrl+C here to stop)")

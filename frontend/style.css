@@ -142,3 +142,67 @@ footer a { color: inherit; }
 .sw-candle { width: 8px; height: 18px; background: var(--c-bull); border-radius: 1px; }
 .defs { grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; }
 .defs dd { text-align: left; }
+
+/* watchlist */
+#watchlist { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; }
+.wl-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.chip { background: var(--panel); color: var(--text); border-color: var(--border); padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.chip:hover { border-color: var(--accent); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* confidence */
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: #dc2626; }
+.ctx-bias { margin: 0 0 8px; font-size: 13px; }
+.conf { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.conf-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; }
+.conf-num { font-size: 22px; font-variant-numeric: tabular-nums; }
+.conf-num small { font-size: 11px; font-weight: 600; margin-left: 3px; color: var(--muted); text-transform: uppercase; }
+.grade-high { color: #16a34a; }
+.grade-medium { color: #d97706; }
+.grade-low { color: var(--muted); }
+.conf-bar { display: flex; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 4px 0; }
+.conf-bar i { display: block; height: 100%; }
+.b-chart { background: var(--c-entry); }
+.b-ctx { background: var(--c-ote); }
+.conf-split { margin: 0; font-size: 11.5px; color: var(--muted); }
+.conf-verdict { margin: 4px 0; font-size: 13px; }
+.reasons { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12.5px; }
+.reasons li { display: flex; gap: 6px; }
+.reasons small { margin-left: auto; color: var(--muted); }
+.r-supports span { color: #16a34a; }
+.r-against span { color: var(--c-bear); }
+.r-risk span { color: #d97706; font-weight: 700; width: .7em; text-align: center; }
+
+/* context section */
+#context { padding: 16px 18px; }
+#context .lead { margin: 0 0 4px; color: var(--muted); max-width: 72ch; }
+#context h3 { font-size: 14px; margin: 18px 0 8px; }
+#context h4 { font-size: 13px; margin: 10px 0 4px; }
+.factors { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.factor { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; min-width: 0; }
+.factor > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0; border: 0; }
+.factor p { margin: 4px 0; font-size: 13px; }
+.factor a, .brief a { color: var(--accent); }
+.src { color: var(--muted); font-size: 12px !important; overflow-wrap: anywhere; }
+.sig { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; text-transform: capitalize; }
+.sig-bullish { background: rgba(8,153,129,0.15); color: var(--c-bull); }
+.sig-bearish { background: rgba(242,54,69,0.15); color: var(--c-bear); }
+.sig-neutral { background: var(--border); color: var(--muted); }
+.sig-risk { background: rgba(217,119,6,0.15); color: #d97706; }
+.headlines, .sources, .catalysts { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 12.5px; }
+.headlines li { display: flex; gap: 6px; margin-bottom: 3px; }
+.headlines small, .catalysts small { color: var(--muted); }
+.catalysts small { display: block; }
+.tone { flex: none; width: 1em; }
+.sources { list-style: decimal; padding-left: 20px; columns: 2 260px; }
+.brief { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.brief p { margin: 6px 0; font-size: 13px; }
+.cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.cases ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.link-btn { background: none; border: 0; color: var(--accent); padding: 0; text-decoration: underline; }
+code { font-size: 12px; background: var(--border); padding: 1px 4px; border-radius: 4px; }
+.b-risk { background: repeating-linear-gradient(135deg, #d97706 0 3px, rgba(217,119,6,0.35) 3px 6px); }
+.factor .group { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#context-body > .factors { margin-top: 12px; }
