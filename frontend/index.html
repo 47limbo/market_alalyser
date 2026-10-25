@@ -10,7 +10,7 @@
   <header>
     <h1>Market Analyser <small id="version"></small></h1>
     <form id="controls">
-      <label>Market <input id="coin" value="BTC" list="coins" autocomplete="off"></label>
+      <label>Market <input id="coin" value="SPY" list="coins" autocomplete="off"></label>
       <datalist id="coins">
         <option value="NVDA"><option value="TSLA"><option value="AAPL"><option value="AMD"><option value="MSFT">
         <option value="AMZN"><option value="META"><option value="PLTR"><option value="GOOGL">
@@ -31,6 +31,16 @@
 
   <main>
     <div id="left">
+    <details id="strategy" class="card" open>
+      <summary><h2>Today's market: news, sectors and what to trade</h2></summary>
+      <p class="lead">The strategy runs top down: the news and macro drivers score each sector, the board ranks today's bullish and bearish niches, the shortlist picks liquid names inside the strongest ones, and Timeframe Alignment (right) times the entry.</p>
+      <div id="drivers"></div>
+      <div class="strat-grid">
+        <section><h3>Sector board</h3><div id="board"></div></section>
+        <section><h3>Shortlist</h3><div id="shortlist"></div></section>
+      </div>
+    </details>
+
     <section id="chart-wrap">
       <div id="chart"></div>
       <canvas id="overlay"></canvas>
@@ -198,6 +208,11 @@
     </div>
 
     <aside>
+      <section class="card" id="alignment-card">
+        <h2>Timeframe Alignment</h2>
+        <div id="alignment"></div>
+      </section>
+
       <section class="card" id="summary">
         <h2>Right now</h2>
         <dl>
@@ -248,10 +263,11 @@
 
   <footer>
     Analysis only. This app never places trades and nothing here is financial advice.
-    Market data from Hyperliquid. Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts™.
+    Stock and ETF prices from Yahoo Finance, crypto from Hyperliquid; economic calendar from Forex Factory. Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts™.
   </footer>
 
   <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/strategy.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

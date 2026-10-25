@@ -53,7 +53,7 @@
   const MAX_ZONES = 8;
   const STRUCTURE_LABELS = 6; // only the latest breaks are labelled
 
-  let state = { coin: "BTC", interval: "15m", report: null, demo: false, context: null, research: false };
+  let state = { coin: "SPY", interval: "15m", report: null, demo: false, context: null, research: false };
   let ws = null;
   let lastBarTime = null;
   let refreshTimer = null;
@@ -72,7 +72,7 @@
 
   async function load() {
     const seq = ++loadSeq;
-    state.coin = el("coin").value.trim() || "BTC";
+    state.coin = el("coin").value.trim() || "SPY";
     state.interval = el("interval").value;
     // stop everything still running for the previous market
     clearTimeout(refreshTimer);
@@ -92,9 +92,16 @@
     state.report = report;
     render(true);
     connectLive();
-    const from = { hyperliquid: `Live · ${state.report.asset.coin} on Hyperliquid`, yahoo: `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)`, demo: "Demo data (offline)" };
+    const crypto = state.report.asset.kind === "crypto";
+    const from = {
+      hyperliquid: crypto ? `Live · ${state.report.asset.coin} on Hyperliquid` : `${state.report.asset.coin} perp on Hyperliquid (Yahoo Finance unavailable)`,
+      yahoo: crypto ? `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)` : `${state.report.asset.yahoo} shares from Yahoo Finance, incl. pre and after hours · refreshes every minute`,
+      demo: "Demo data (offline)",
+    };
     setStatus(`${from[state.report.source]} · ${state.interval}`);
     markWatchlist();
+    await window.Strategy?.market(state.report.asset, true);
+    if (seq !== loadSeq) return;
     loadContext();
   }
 
@@ -674,6 +681,8 @@
       if (seq !== loadSeq) return;
       state.report = report;
       render(false);
+      await window.Strategy?.market(state.report.asset, false);
+      if (seq !== loadSeq) return;
       loadContext();
     } catch { /* keep the last good report */ }
   }
@@ -705,5 +714,6 @@
   resizeOverlay();
   requestAnimationFrame(loop);
 
+  window.Strategy?.init({ open: (ticker) => { el("coin").value = ticker; load(); } });
   fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; el("version").textContent = `v${cfg.version}`; renderWatchlist(cfg.watchlist); load(); });
 })();
