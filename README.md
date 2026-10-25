@@ -1,8 +1,20 @@
 # Market Analyser
 
-A market analysis app for crypto and stock perpetuals. It loads live candles from Hyperliquid, runs day-trader technical detectors on them and draws the results on the chart.
+A market analysis app for day trading US stocks and index ETFs on the news. It scores the day's market-moving news and macro drivers, ranks which sectors are bullish or bearish today, shortlists the names to trade inside them, and times the entry across five timeframes. Charts run day-trader technical detectors on real share prices from Yahoo Finance (crypto still charts from Hyperliquid).
 
 **Analysis only.** The app has no order code and needs no trading keys. Nothing it shows is financial advice.
+
+## The strategy (v0.5)
+
+The full write-up, with every driver, sensitivity and rule, is the strategy doc in the project. The app runs it top down in the **Today's market** panel above the chart and the **Timeframe Alignment** card beside it:
+
+1. **Drivers.** The 10-year yield, oil, the dollar, VIX and copper (Yahoo Finance), plus this week's US economic releases from the free Forex Factory calendar, each turned into a surprise: how far it moved or missed consensus, in typical-day units.
+2. **Transmission.** Each surprise goes through the sector sensitivity matrix (`backend/app/strategy/rules.py`), and leaders that made an unusually large move (NVDA, JPM, UNH, XOM and others) pass part of it to their niche. Hyperscalers' spending headlines lift the chip and power niches even when the spender's own shares fall.
+3. **Sector board.** About 25 niches (the 11 sectors plus industry ETFs such as SMH, KRE, XBI, ITB, JETS), scored `40% news + 30% relative strength + 15% flow + 15% breadth`. Each row says whether news and price agree (Confirmed), disagree (Sell the news, Bad news priced in) or move on flow alone. A banner flags a risk-to-defensive rotation (tech red while healthcare, staples or utilities lead). The board logs its calls to `data/predictions.json` and shows how often they were right the next session.
+4. **Shortlist.** Up to three names in each of the top two bull and bottom two bear niches: beta and correlation to the theme, liquidity, room to move, no earnings within 2 sessions or headlines of their own against the trade, plus bonuses for lagging a leader and leading the niche.
+5. **Timeframe Alignment.** Daily and 4H set the bias, 1H and 15m the location, 5m the trigger (the Entry Check on 5m). The verdict is Aligned, Waiting or Conflict, with entry, stop, target and a position size: by default $1000 in with at most 5% ($50) at risk, changeable in the card. Session rules show as warnings: nothing before 9:35 ET, flat by 15:55, no entries 2 minutes before to 5 minutes after a high-impact release. The niche and the alignment also feed the Confidence card.
+
+Longs and shorts both work. Every rule table is plain Python in `backend/app/strategy/` so research can be added as rows.
 
 ## What it does so far
 
@@ -42,7 +54,7 @@ Steps 3 to 6 plus the reward-to-risk rule are required. A setup shows as **formi
 
 ### Watchlist
 
-One click loads each of NVDA, TSLA, AAPL, AMD, MSFT, AMZN, META, PLTR, GOOGL, SPY, QQQ, IWM, BTC and SOL (`backend/app/watchlist.py`). Stocks chart from Hyperliquid's 24/7 stock perps (`xyz:NVDA` and so on), the index ETFs from the index perps (SPY → `mkts:US500`, QQQ → `mkts:USTECH`, IWM → `mkts:SMALL2000`). If a Hyperliquid market fails to load, the chart falls back to the real share or ETF from Yahoo Finance (regular hours only, refreshed every minute).
+One click loads each of NVDA, TSLA, AAPL, AMD, MSFT, AMZN, META, PLTR, GOOGL, SPY, QQQ, IWM, BTC and SOL (`backend/app/watchlist.py`), and any name on the sector board or shortlist opens with a click. Stocks and ETFs chart the real shares from Yahoo Finance, including pre-market and after-hours, refreshed every minute. If Yahoo fails, they fall back to Hyperliquid's stock and index perps (`xyz:NVDA`, SPY → `mkts:US500`, QQQ → `mkts:USTECH`, IWM → `mkts:SMALL2000`). Crypto charts live from Hyperliquid.
 
 ### News and macro context, and confidence
 
@@ -95,14 +107,16 @@ backend/app/hyperliquid.py   read-only candle client (public /info endpoint)
 backend/app/detectors/       structure, zones, liquidity, sessions, volume, indicators
 backend/app/analyze.py       runs all detectors and returns one report
 backend/app/watchlist.py     the 14 tickers and their chart markets
-backend/app/yahoo.py         fallback candles from Yahoo Finance
+backend/app/yahoo.py         stock and ETF candles from Yahoo Finance
+backend/app/strategy/        the strategy: universe, rule tables, calendar, sector board, shortlist, alignment
 backend/app/context/         yields, Fed, earnings, headlines, deep research, confidence score
-backend/app/main.py          FastAPI: /api/candles, /api/analysis, /api/context, /api/research, serves the frontend
+backend/app/main.py          FastAPI: /api/candles, /api/analysis, /api/context, /api/research,
+                             /api/board, /api/shortlist, /api/alignment, serves the frontend
 frontend/                    chart page (TradingView Lightweight Charts 4.2.3, vendored)
 ```
 
 ## Next
 
-Phase 4 adds the backtester. The news and macro layer above covers the start of phases 5 and 6; next would be fuller fundamentals (valuation, revisions, insider and institutional flows) and positioning data.
+A backtest of the sector board's weights on two years of daily data, then the backtester for entries. The news and macro layer above covers the start of phases 5 and 6; next would be fuller fundamentals (valuation, revisions, insider and institutional flows) and positioning data.
 
 Charts by [TradingView](https://www.tradingview.com/) Lightweight Charts™ (Apache 2.0, see `frontend/vendor/LIGHTWEIGHT-CHARTS-LICENSE`).

@@ -22,10 +22,13 @@ from fastapi.staticfiles import StaticFiles
 from . import VERSION, yahoo
 from .analyze import analyse
 from .context import ResearchUnavailable, get_context, run_research, score_setup
+from .context.factor import Factor
 from .demo import demo_candles
 from .hyperliquid import HyperliquidError, fetch_candles
 from .models import INTERVAL_MS
 from .setups import HIGHER_TIMEFRAME
+from .strategy import get_alignment, get_board, get_shortlist, latest_alignment
+from .strategy.universe import name_of, niches_of
 from .watchlist import WATCHLIST, Asset, find
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
@@ -45,35 +48,53 @@ async def no_stale_frontend(request, call_next):
 
 
 def resolve(coin: str) -> Asset:
-    """A watchlist asset, or an ad hoc one for any other Hyperliquid market."""
+    """A watchlist asset, a stock or ETF from the sector board, or an ad hoc one for any other Hyperliquid market."""
     coin = coin.strip()
     asset = find(coin)
     if asset:
         return asset
     name = coin.split(":")[-1].upper()
+    if ":" not in coin and niches_of(name):
+        full = name_of(name)
+        etf = any(n.etf == name for n in niches_of(name))
+        return Asset(name, f"xyz:{name}", "etf" if etf else "stock", full, name, f'"{full}" OR {name} stock',
+                     tuple({name.lower(), full.lower()}))
     kind = "stock" if ":" in coin else "crypto"
     return Asset(name, coin, kind, name, name if kind == "stock" else f"{name}-USD",
                  f"{name} stock" if kind == "stock" else f"{name} crypto price", (name.lower(),))
 
 
 async def load(coin: str, interval: str, limit: int):
-    """Candles and where they came from: Hyperliquid first, Yahoo Finance if that fails."""
+    """Candles and where they came from. Stocks and ETFs chart the real shares from Yahoo Finance (with pre-market
+    and after-hours), falling back to Hyperliquid's stock perps; crypto is the other way round."""
     if interval not in INTERVAL_MS:
         raise HTTPException(400, f"interval must be one of {', '.join(INTERVAL_MS)}")
     asset = resolve(coin)
     if DEMO:
         return demo_candles(interval, limit, seed=sum(map(ord, asset.coin))), "demo"
-    try:
-        data = await fetch_candles(asset.coin, interval, limit)
-        if data:
-            return data, "hyperliquid"
-        error = f"Hyperliquid has no candles for {asset.coin}"
-    except HyperliquidError as exc:
-        error = str(exc)
-    try:
+
+    async def from_yahoo():
         return await yahoo.fetch_candles(asset.yahoo, interval, limit), "yahoo"
-    except yahoo.YahooError as exc:
-        raise HTTPException(502, f"{error}; Yahoo fallback also failed: {exc}") from exc
+
+    async def from_hyperliquid():
+        data = await fetch_candles(asset.coin, interval, limit)
+        if not data:
+            raise HyperliquidError(f"Hyperliquid has no candles for {asset.coin}")
+        return data, "hyperliquid"
+
+    order = [from_hyperliquid, from_yahoo] if asset.kind == "crypto" else [from_yahoo, from_hyperliquid]
+    if asset.kind != "crypto" and interval not in yahoo.PLAN:
+        order.reverse()  # Yahoo has no 3m, 2h, 8h or 12h bars
+    errors = []
+    for source in order:
+        try:
+            data, name = await source()
+            if data:
+                return data, name
+            errors.append(f"{name} returned no candles")
+        except (HyperliquidError, yahoo.YahooError, ValueError) as exc:
+            errors.append(str(exc))
+    raise HTTPException(502, "; ".join(errors))
 
 
 @app.get("/api/config")
@@ -116,8 +137,55 @@ async def context(coin: str = "BTC", interval: str = "15m"):
     asset = resolve(coin)
     ctx = await get_context(asset, demo=DEMO)
     setups = _setups.get(f"{asset.ticker}:{interval}", [])
-    factors = ctx.pop("factors")
+    factors = ctx.pop("factors") + strategy_factors(asset.ticker)
     return {**ctx, "factors": [f.to_dict() for f in factors], "confidence": [score_setup(s, factors) for s in setups]}
+
+
+def strategy_factors(ticker: str) -> list[Factor]:
+    """The niche and the Timeframe Alignment, as evidence for the confidence score (strategy doc, Stage 5)."""
+    a = latest_alignment(ticker)
+    if not a:
+        return []
+    out = []
+    sign = 1 if a["direction"] == "long" else -1
+    row = a.get("niche")
+    if row:
+        out.append(Factor("niche", "Strategy", f"Niche: {row['name']} ({row['etf']})",
+                          f"{row['label']}, score {row['score']:+.0f} on today's sector board. {row['read']}.",
+                          score=max(-1.0, min(1.0, row["score"] / 60)), weight=1.2))
+    passed = sum(c["status"] == "pass" for c in a["cards"])
+    out.append(Factor("alignment", "Strategy", f"Timeframe Alignment ({a['direction']})",
+                      f"{a['verdict']}: {passed} of {len(a['cards'])} timeframes pass. {a['why']}",
+                      score=sign * (-0.8 if a["verdict"] == "Conflict" else passed / max(1, len(a["cards"]))), weight=1.5))
+    return out
+
+
+@app.get("/api/board")
+async def board():
+    """Stages 1 to 3: today's drivers, the market regime and the ranked sector board."""
+    try:
+        return await get_board(DEMO)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.get("/api/shortlist")
+async def shortlist_():
+    """Stage 4: tickers to trade in the strongest and weakest niches."""
+    try:
+        return await get_shortlist(DEMO)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.get("/api/alignment")
+async def alignment(coin: str = "SPY", direction: str | None = None,
+                    amount: float = Query(1000, gt=0), risk_pct: float = Query(5.0, gt=0, le=100)):
+    """Stage 5: Daily and 4H bias, 1H and 15m location, 5m trigger, and the sized trade plan."""
+    asset = resolve(coin)
+    if asset.kind == "crypto":
+        raise HTTPException(400, "the strategy covers US stocks and ETFs only")
+    return await get_alignment(asset.ticker, load, direction, amount, risk_pct, DEMO)
 
 
 @app.post("/api/research")

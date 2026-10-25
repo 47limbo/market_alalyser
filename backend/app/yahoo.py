@@ -1,6 +1,7 @@
-"""Fallback candles from Yahoo Finance's public chart endpoint, for when a Hyperliquid market fails.
+"""Candles from Yahoo Finance's public chart endpoint: the main chart for stocks and ETFs, and the data behind
+the sector board.
 
-Yahoo shows regular-hours share prices (no overnight trading) and has no 4h bars, so 4h is built from 1h.
+Intraday bars include pre-market and after-hours trading. Yahoo has no 4h bars, so 4h is built from 1h.
 """
 
 import httpx
@@ -46,14 +47,18 @@ def resample(candles: list[Candle], ms: int) -> list[Candle]:
     ]
 
 
-async def fetch_candles(symbol: str, interval: str, limit: int = 500, client: httpx.AsyncClient | None = None) -> list[Candle]:
+async def fetch_candles(symbol: str, interval: str, limit: int = 500, client: httpx.AsyncClient | None = None,
+                        rng: str | None = None) -> list[Candle]:
     if interval not in PLAN:
         raise ValueError(f"unsupported interval {interval!r}")
-    yahoo_interval, rng = PLAN[interval]
+    yahoo_interval, longest = PLAN[interval]
+    params = {"interval": yahoo_interval, "range": rng or longest}
+    if interval != "1d":
+        params["includePrePost"] = "true"
     own_client = client is None
     client = client or httpx.AsyncClient(timeout=15, headers=HEADERS)
     try:
-        resp = await client.get(CHART_URL.format(symbol=symbol), params={"interval": yahoo_interval, "range": rng})
+        resp = await client.get(CHART_URL.format(symbol=symbol), params=params)
         if resp.status_code != 200:
             raise YahooError(f"Yahoo returned {resp.status_code}")
         candles = parse_chart(resp.json())
