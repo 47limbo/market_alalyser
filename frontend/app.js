@@ -22,6 +22,11 @@
     ote: "#00a3bf",
     oteFill: "rgba(0,163,191,0.06)",
     kz: dark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.03)",
+    // pre-market and after-hours: faded candles on a faint orange band
+    extBull: "rgba(8,153,129,0.4)",
+    extBear: "rgba(242,54,69,0.4)",
+    extBand: "rgba(255,138,0,0.07)",
+    extLine: "#ff8a00",
     profile: dark ? "rgba(148,163,184,0.3)" : "rgba(120,123,134,0.22)",
     poc: dark ? "rgba(148,163,184,0.7)" : "rgba(120,123,134,0.6)",
     entry: "#2962ff",
@@ -58,15 +63,31 @@
   let lastBarTime = null;
   let refreshTimer = null;
   let pollTimer = null;
+  let extLine = null; // the dashed pre-market / after-hours price line
+  let extSpans = []; // runs of extended-hours candles, for the shaded band
 
   const layerOn = (name) => document.querySelector(`[data-layer="${name}"]`).checked;
   const sec = (ms) => Math.floor(ms / 1000);
   const fmt = (x) => x == null ? "–" : Number(x).toLocaleString(undefined, { maximumFractionDigits: x < 10 ? 4 : 2 });
 
+  // pre-market and after-hours: on unless switched off, remembered between visits
+  const extBox = el("ext");
+  try { extBox.checked = localStorage.getItem("ma-ext") !== "0"; } catch { /* storage blocked: keep the default */ }
+  const nyClock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" });
+  // same rule as the server: a bar is extended hours unless it opens inside 9:30 to 16:00 New York on a weekday
+  function isExtended(ms) {
+    const p = Object.fromEntries(nyClock.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    const mins = Number(p.hour) * 60 + Number(p.minute);
+    return p.weekday === "Sat" || p.weekday === "Sun" || mins < 570 || mins >= 960;
+  }
+  const extColor = (k) => k.ext ? (k.c >= k.o ? C.extBull : C.extBear) : undefined;
+
   function setStatus(text, error = false) {
     el("status").textContent = text;
     el("status").className = error ? "error" : "";
   }
+
+  const analysisUrl = () => `/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500&ext=${extBox.checked}`;
 
   let loadSeq = 0; // bumps on every switch, so answers for a market you already left are dropped
 
@@ -81,7 +102,7 @@
     setStatus(`Loading ${state.coin}…`);
     let report;
     try {
-      const res = await fetch(`/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500`);
+      const res = await fetch(analysisUrl());
       if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
       report = await res.json();
     } catch (err) {
@@ -95,7 +116,7 @@
     const crypto = state.report.asset.kind === "crypto";
     const from = {
       hyperliquid: crypto ? `Live · ${state.report.asset.coin} on Hyperliquid` : `${state.report.asset.coin} perp on Hyperliquid (Yahoo Finance unavailable)`,
-      yahoo: crypto ? `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)` : `${state.report.asset.yahoo} shares from Yahoo Finance, incl. pre and after hours · refreshes every minute`,
+      yahoo: crypto ? `${state.report.asset.yahoo} from Yahoo Finance (Hyperliquid unavailable, refreshes every minute)` : `${state.report.asset.yahoo} shares from Yahoo Finance, ${state.report.ext ? "incl. pre and after hours" : "regular hours only"} · refreshes every minute`,
       demo: "Demo data (offline)",
     };
     setStatus(`${from[state.report.source]} · ${state.interval}`);
@@ -107,11 +128,24 @@
 
   function render(fit) {
     const r = state.report;
-    candles.setData(r.candles.map((k) => ({ time: sec(k.t), open: k.o, high: k.h, low: k.l, close: k.c })));
+    candles.setData(r.candles.map((k) => {
+      const color = extColor(k);
+      return color ? { time: sec(k.t), open: k.o, high: k.h, low: k.l, close: k.c, color, wickColor: color }
+        : { time: sec(k.t), open: k.o, high: k.h, low: k.l, close: k.c };
+    }));
     volume.setData(r.candles.map((k) => ({
-      time: sec(k.t), value: k.v, color: k.c >= k.o ? "rgba(8,153,129,0.3)" : "rgba(242,54,69,0.3)",
+      time: sec(k.t), value: k.v, color: k.c >= k.o ? `rgba(8,153,129,${k.ext ? 0.12 : 0.3})` : `rgba(242,54,69,${k.ext ? 0.12 : 0.3})`,
     })));
     lastBarTime = r.candles.at(-1).t;
+    extSpans = [];
+    r.candles.forEach((k, i) => {
+      if (!k.ext) return;
+      const run = extSpans.at(-1);
+      if (run && run.end === i - 1) run.end = i;
+      else extSpans.push({ start: i, end: i });
+    });
+    extSpans = extSpans.map((run) => ({ start: r.candles[run.start].t, end: r.candles[run.end].t }));
+    renderExtended(r);
 
     const markers = [];
     if (layerOn("sweeps")) {
@@ -132,6 +166,26 @@
     renderSummary(r);
     renderSetups(r);
     renderEvents(r);
+  }
+
+  // the latest pre-market or after-hours price, as a dashed line across the chart and a line under Price
+  function renderExtended(r) {
+    if (extLine) { candles.removePriceLine(extLine); extLine = null; }
+    const stock = r.asset.kind !== "crypto";
+    extBox.disabled = !stock;
+    extBox.parentElement.title = stock ? "Show pre-market and after-hours trading on the chart" : "Crypto trades round the clock, so it has no pre-market";
+    el("ext-note").hidden = !r.ext;
+    const x = r.extended;
+    el("s-ext-row").hidden = el("s-ext").hidden = !x;
+    if (!x) return;
+    const change = x.change_pct == null ? "" : ` (${x.change_pct >= 0 ? "+" : ""}${x.change_pct.toFixed(2)}%)`;
+    const at = new Date(x.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    el("s-ext-row").textContent = x.session;
+    el("s-ext").innerHTML = `${fmt(x.price)}<span class="${x.change_pct > 0 ? "bull" : x.change_pct < 0 ? "bear" : ""}">${change}</span> <small class="muted">at ${at}</small>`;
+    extLine = candles.createPriceLine({
+      price: x.price, color: C.extLine, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true, title: x.session,
+    });
   }
 
   // ---- watchlist ----
@@ -327,7 +381,7 @@
     const items = [
       ...r.structure.map((e) => ({ t: e.time, dir: e.direction, text: `${e.type} ${e.direction} at ${fmt(e.level)}${e.displacement ? " with displacement" : ""}` })),
       ...r.sweeps.map((s) => ({ t: s.time, dir: s.direction, text: `Swept ${s.source} ${fmt(s.level)}` })),
-      ...r.order_blocks.map((b) => ({ t: r.candles[b.event_index].t, dir: b.direction, text: `New ${b.direction} order block ${fmt(b.bottom)} to ${fmt(b.top)}` })),
+      ...r.order_blocks.map((b) => ({ t: b.event_time, dir: b.direction, text: `New ${b.direction} order block ${fmt(b.bottom)} to ${fmt(b.top)}` })),
     ].sort((a, b) => b.t - a.t).slice(0, 20);
     el("events").innerHTML = items.map((i) => {
       const when = new Date(i.t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -372,7 +426,7 @@
 
   // highest high (or lowest low) of the candles from the broken swing to a few candles after the break
   function extremeBetween(t0, t1, high) {
-    const ks = state.report.candles;
+    const ks = state.report.candles.filter((k) => !k.ext);
     const step = ks.length > 1 ? ks[1].t - ks[0].t : 0;
     let best = null;
     for (const k of ks) {
@@ -476,6 +530,15 @@
     const price = r.last.price;
     const showDead = layerOn("filled");
     const since = r.candles[Math.max(0, r.candles.length - RECENT)].t;
+
+    // half a bar either side, so the band covers the whole candle
+    const half = chart.timeScale().options().barSpacing / 2;
+    for (const s of extSpans) {
+      const x0 = x(s.start), x1 = x(s.end);
+      if (x0 == null || x1 == null) continue;
+      ctx.fillStyle = C.extBand;
+      ctx.fillRect(x0 - half, 0, x1 - x0 + 2 * half, plotBottom());
+    }
 
     if (layerOn("killzones")) {
       for (const k of r.killzones) {
@@ -659,8 +722,11 @@
       const k = data.data;
       if (k.s !== coin || k.i !== state.interval) return;
       const t = Number(k.t);
-      candles.update({ time: sec(t), open: +k.o, high: +k.h, low: +k.l, close: +k.c });
-      volume.update({ time: sec(t), value: +k.v, color: +k.c >= +k.o ? "rgba(8,153,129,0.3)" : "rgba(242,54,69,0.3)" });
+      const off = state.report.asset.kind !== "crypto" && isExtended(t);
+      if (off && !state.report.ext) return; // regular hours only: leave the perp's off-hours trading out
+      const color = off ? (+k.c >= +k.o ? C.extBull : C.extBear) : undefined;
+      candles.update({ time: sec(t), open: +k.o, high: +k.h, low: +k.l, close: +k.c, ...(color && { color, wickColor: color }) });
+      volume.update({ time: sec(t), value: +k.v, color: +k.c >= +k.o ? `rgba(8,153,129,${off ? 0.12 : 0.3})` : `rgba(242,54,69,${off ? 0.12 : 0.3})` });
       el("s-price").textContent = fmt(+k.c);
       if (lastBarTime != null && t > lastBarTime) {
         // the previous candle just closed: re-run the detectors on closed data
@@ -676,7 +742,7 @@
   async function refresh() {
     const seq = loadSeq;
     try {
-      const res = await fetch(`/api/analysis?coin=${encodeURIComponent(state.coin)}&interval=${state.interval}&limit=500`);
+      const res = await fetch(analysisUrl());
       if (!res.ok || seq !== loadSeq) return;
       const report = await res.json();
       if (seq !== loadSeq) return;
@@ -710,6 +776,10 @@
     load();
   });
   el("interval").addEventListener("change", load);
+  extBox.addEventListener("change", () => {
+    try { localStorage.setItem("ma-ext", extBox.checked ? "1" : "0"); } catch { /* not remembered, still applies */ }
+    load();
+  });
   document.querySelectorAll("[data-layer]").forEach((box) => box.addEventListener("change", () => state.report && render(false)));
   new ResizeObserver(resizeOverlay).observe(chartEl);
   resizeOverlay();

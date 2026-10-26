@@ -1,6 +1,6 @@
 """Sessions and killzones in New York time (Part 2.4 of the research doc)."""
 
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from ..models import Candle
@@ -18,6 +18,28 @@ KILLZONES = [
 
 def ny_time(ms: int) -> datetime:
     return datetime.fromtimestamp(ms / 1000, tz=NY)
+
+
+def regular_hours(ms: int, span_ms: int = 1) -> bool:
+    """Whether a bar opening at `ms` and lasting `span_ms` overlaps the US regular session (9:30 to 16:00 New York,
+    weekdays). Bars that don't are pre-market, after-hours or overnight."""
+    start, end = ny_time(ms), ny_time(ms + max(1, span_ms) - 1)
+    day = start.date()
+    while day <= end.date():
+        if day.weekday() < 5:
+            open_, close = (datetime.combine(day, t, tzinfo=NY) for t in (time(9, 30), time(16)))
+            if start < close and end >= open_:
+                return True
+        day += timedelta(days=1)
+    return False
+
+
+def extended_session(ms: int) -> str:
+    """Name of the extended-hours session a bar outside regular hours falls in."""
+    t = ny_time(ms)
+    if t.weekday() >= 5 or t.hour < 4 or t.hour >= 20:
+        return "Overnight"
+    return "Pre-market" if t.time() < time(9, 30) else "After-hours"
 
 
 def killzone_for(ms: int) -> str | None:

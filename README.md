@@ -65,7 +65,7 @@ Steps 3 to 6 plus the reward-to-risk rule are required. A setup shows as **formi
 
 ### Watchlist
 
-One click loads each of NVDA, TSLA, AAPL, AMD, MSFT, AMZN, META, PLTR, GOOGL, SPY, QQQ, IWM, BTC and SOL (`backend/app/watchlist.py`), and any name on the sector board or shortlist opens with a click. Stocks and ETFs chart the real shares from Yahoo Finance, including pre-market and after-hours, refreshed every minute. If Yahoo fails, they fall back to Hyperliquid's stock and index perps (`xyz:NVDA`, SPY → `mkts:US500`, QQQ → `mkts:USTECH`, IWM → `mkts:SMALL2000`). Crypto charts live from Hyperliquid.
+One click loads each of NVDA, TSLA, AAPL, AMD, MSFT, AMZN, META, PLTR, GOOGL, SPY, QQQ, IWM, BTC and SOL (`backend/app/watchlist.py`), and any name on the sector board or shortlist opens with a click. Stocks and ETFs chart the real shares from Yahoo Finance, refreshed every minute. With **Pre and after hours** ticked at the top (the default), pre-market (4am to 9:30am New York) and after-hours (4pm to 8pm) candles show faded on a faint orange band, and a dashed orange line marks the latest pre-market or after-hours price, with its change from the last regular close under Price. That line shows on the daily chart too, even though daily candles hold no extended hours. The detectors, Entry Check, VWAP and Timeframe Alignment always read regular-hours candles only, so thin overnight prints don't make fake swings or zones, and they say the same thing with the box on or off. If Yahoo fails, they fall back to Hyperliquid's stock and index perps (`xyz:NVDA`, SPY → `mkts:US500`, QQQ → `mkts:USTECH`, IWM → `mkts:SMALL2000`). Crypto charts live from Hyperliquid.
 
 ### News and macro context, and confidence
 
