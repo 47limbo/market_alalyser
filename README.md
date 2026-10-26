@@ -6,7 +6,7 @@ A market analysis app for day trading US stocks and index ETFs on the news. It s
 
 ## The strategy (v0.5)
 
-The full write-up, with every driver, sensitivity and rule, is the strategy doc in the project. The app runs it top down in the **Today's market** panel above the chart and the **Timeframe Alignment** card beside it:
+The full write-up, with every driver, sensitivity and rule, is the strategy doc in the project. The app runs it top down in the **Market today** tab and the **Timeframe Alignment** card beside the chart:
 
 1. **Drivers.** The 10-year yield, oil, the dollar, VIX and copper (Yahoo Finance), plus this week's US economic releases from the free Forex Factory calendar, each turned into a surprise: how far it moved or missed consensus, in typical-day units.
 2. **Transmission.** Each surprise goes through the sector sensitivity matrix (`backend/app/strategy/rules.py`), and leaders that made an unusually large move (NVDA, JPM, UNH, XOM and others) pass part of it to their niche. Hyperscalers' spending headlines lift the chip and power niches even when the spender's own shares fall.
@@ -15,6 +15,17 @@ The full write-up, with every driver, sensitivity and rule, is the strategy doc 
 5. **Timeframe Alignment.** Daily and 4H set the bias, 1H and 15m the location, 5m the trigger (the Entry Check on 5m). The verdict is Aligned, Waiting or Conflict, with entry, stop, target and a position size: by default $1000 in with at most 5% ($50) at risk, changeable in the card. Session rules show as warnings: nothing before 9:35 ET, flat by 15:55, no entries 2 minutes before to 5 minutes after a high-impact release. The niche and the alignment also feed the Confidence card.
 
 Longs and shorts both work. Every rule table is plain Python in `backend/app/strategy/` so research can be added as rows.
+
+## The page
+
+The app uses a black and orange theme and splits into four tabs. The market box, timeframe and watchlist at the top work from any tab.
+
+- **Chart**: the chart with Timeframe Alignment, Right now, Entry Check, Confidence, Layers and Latest events beside it.
+- **Market today**: the market-wide drivers (yields, oil, dollar, VIX, copper), this week's US economic releases, leaders moving their group, the sector board and the shortlist. Clicking a ticker opens its chart.
+- **News**: the news and macro behind the selected market, with Deep research.
+- **Glossary**: what BOS, CHoCH, FVG, order blocks, liquidity and the other markings mean and how to use them.
+
+The app remembers which tab was open and returns to it next time.
 
 ## What it does so far
 
@@ -70,7 +81,7 @@ For the selected asset, `backend/app/context/` gathers, in parallel and cached f
 | Reported EPS and revenue growth, latest 10-Q, 10-K and earnings 8-K (stocks) | SEC EDGAR filings (no key) | Growth on a year earlier leans bullish |
 | Deep research | Claude with web search, optional key | Cited bull and bear case, catalysts, a bias that counts most in the score |
 
-The **Confidence** card blends the two halves for each direction: up to 60 points from the Entry Check, up to 40 from how far the context leans the same way, minus up to 25 for earnings or a Fed decision in the next few days, and capped at 40 when the chart has no setup. Every input is listed under the chart with which way it leans and a link to its source. A source that cannot be reached is named and left out.
+The **Confidence** card blends the two halves for each direction: up to 60 points from the Entry Check, up to 40 from how far the context leans the same way, minus up to 25 for earnings or a Fed decision in the next few days, and capped at 40 when the chart has no setup. Every input is listed on the **News** tab with which way it leans and a link to its source. A source that cannot be reached is named and left out.
 
 #### Optional keys
 
@@ -112,7 +123,8 @@ backend/app/strategy/        the strategy: universe, rule tables, calendar, sect
 backend/app/context/         yields, Fed, earnings, headlines, deep research, confidence score
 backend/app/main.py          FastAPI: /api/candles, /api/analysis, /api/context, /api/research,
                              /api/board, /api/shortlist, /api/alignment, serves the frontend
-frontend/                    chart page (TradingView Lightweight Charts 4.2.3, vendored)
+frontend/                    the page: tabs.js, app.js (chart), strategy.js (board and alignment), style.css
+                             (TradingView Lightweight Charts 4.2.3, vendored)
 ```
 
 ## Next
