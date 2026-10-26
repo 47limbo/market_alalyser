@@ -1,12 +1,12 @@
 // Market Analyser chart. Read-only: it loads candles and analysis, and never sends orders.
 (() => {
   const HL_WS = "wss://api.hyperliquid.xyz/ws";
-  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = true; // the page always uses the black and orange theme
   // one colour per kind of annotation; the same colours appear as swatches in the Layers panel
   const C = {
     text: dark ? "#ececea" : "#1d1d1b",
     muted: dark ? "#8b8b86" : "#787b86",
-    grid: dark ? "#25262b" : "#f0f0ec",
+    grid: dark ? "#1d1d20" : "#f0f0ec",
     bull: "#089981",
     bear: "#f23645",
     fvgBull: "rgba(8,153,129,0.14)",
@@ -27,7 +27,7 @@
     entry: "#2962ff",
     stop: "#f23645",
     target: "#089981",
-    labelBg: dark ? "rgba(28,29,33,0.92)" : "rgba(255,255,255,0.92)",
+    labelBg: dark ? "rgba(12,12,13,0.92)" : "rgba(255,255,255,0.92)",
   };
 
 
@@ -152,6 +152,7 @@
   function markWatchlist() {
     const t = state.report.asset.ticker;
     document.querySelectorAll("#watchlist .chip").forEach((b) => b.classList.toggle("on", b.dataset.ticker === t));
+    el("news-ticker").textContent = t;
   }
 
   // ---- news and macro context, and the confidence score ----
@@ -198,7 +199,7 @@
         <p class="conf-split">Chart ${Math.round(c.chart_points)}/60 · Context ${Math.round(c.context_points)}/40${c.event_penalty ? ` · Event risk −${Math.round(c.event_penalty)}` : ""}${c.status === "none" ? " · capped at 40 without a setup" : ""}</p>
         <p class="conf-verdict">${esc(c.verdict)}</p>
         <ul class="reasons">${reasons}</ul></div>`;
-    }).join("") + '<p class="muted small">Details and sources are under the chart.</p>';
+    }).join("") + `<p class="muted small">Details and sources are on the <button type="button" class="link-btn" data-goto="news">News tab</button>.</p>`;
   }
 
   function renderContext(ctx) {
@@ -714,6 +715,6 @@
   resizeOverlay();
   requestAnimationFrame(loop);
 
-  window.Strategy?.init({ open: (ticker) => { el("coin").value = ticker; load(); } });
+  window.Strategy?.init({ open: (ticker) => { el("coin").value = ticker; window.Tabs?.show("chart"); load(); } });
   fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; el("version").textContent = `v${cfg.version}`; renderWatchlist(cfg.watchlist); load(); });
 })();

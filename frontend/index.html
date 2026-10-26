@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <h1>Market Analyser <small id="version"></small></h1>
+  <header class="top">
+    <h1><span class="logo" aria-hidden="true"></span>Market Analyser <small id="version"></small></h1>
     <form id="controls">
       <label>Market <input id="coin" value="SPY" list="coins" autocomplete="off"></label>
       <datalist id="coins">
@@ -29,29 +29,97 @@
     <nav id="watchlist" aria-label="Watchlist"></nav>
   </header>
 
-  <main>
-    <div id="left">
-    <details id="strategy" class="card" open>
-      <summary><h2>Today's market: news, sectors and what to trade</h2></summary>
-      <p class="lead">The strategy runs top down: the news and macro drivers score each sector, the board ranks today's bullish and bearish niches, the shortlist picks liquid names inside the strongest ones, and Timeframe Alignment (right) times the entry.</p>
-      <div id="drivers"></div>
-      <div class="strat-grid">
-        <section><h3>Sector board</h3><div id="board"></div></section>
-        <section><h3>Shortlist</h3><div id="shortlist"></div></section>
-      </div>
-    </details>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-btn-chart" data-tab="chart" aria-controls="tab-chart">Chart</button>
+    <button type="button" role="tab" id="tab-btn-market" data-tab="market" aria-controls="tab-market">Market today</button>
+    <button type="button" role="tab" id="tab-btn-news" data-tab="news" aria-controls="tab-news">News <span id="news-ticker"></span></button>
+    <button type="button" role="tab" id="tab-btn-glossary" data-tab="glossary" aria-controls="tab-glossary">Glossary</button>
+  </nav>
 
+  <main>
+  <div class="tab-panel" id="tab-chart" role="tabpanel" aria-labelledby="tab-btn-chart">
+    <div class="chart-layout">
     <section id="chart-wrap">
       <div id="chart"></div>
       <canvas id="overlay"></canvas>
     </section>
 
+    <aside>
+      <section class="card" id="alignment-card">
+        <h2>Timeframe Alignment</h2>
+        <div id="alignment"></div>
+      </section>
+
+      <section class="card" id="summary">
+        <h2>Right now</h2>
+        <dl>
+          <dt>Price</dt><dd id="s-price">–</dd>
+          <dt>Structure</dt><dd id="s-trend">–</dd>
+          <dt>Higher timeframe</dt><dd id="s-htf">–</dd>
+          <dt>Dealing range</dt><dd id="s-zone">–</dd>
+          <dt>Session</dt><dd id="s-kz">–</dd>
+          <dt>ATR (14)</dt><dd id="s-atr">–</dd>
+          <dt>Relative volume</dt><dd id="s-rvol">–</dd>
+        </dl>
+      </section>
+
+      <section class="card" id="entry-check">
+        <h2>Entry Check</h2>
+        <div id="alert" role="status" hidden></div>
+        <div id="setups"></div>
+      </section>
+
+      <section class="card" id="confidence-card">
+        <h2>Confidence</h2>
+        <div id="confidence"></div>
+      </section>
+
+      <section class="card">
+        <h2>Layers</h2>
+        <div id="layers">
+          <label><input type="checkbox" data-layer="structure" checked> BOS / CHoCH</label>
+          <label><input type="checkbox" data-layer="fvg" checked> Fair value gaps</label>
+          <label><input type="checkbox" data-layer="ob" checked> Order blocks</label>
+          <label><input type="checkbox" data-layer="liquidity" checked> Resting liquidity</label>
+          <label><input type="checkbox" data-layer="sweeps" checked> Sweeps</label>
+          <label><input type="checkbox" data-layer="range" checked> Premium / discount</label>
+          <label><input type="checkbox" data-layer="killzones"> Killzones</label>
+          <label><input type="checkbox" data-layer="vwap" checked> VWAP and bands</label>
+          <label><input type="checkbox" data-layer="profile"> Volume profile</label>
+          <label><input type="checkbox" data-layer="plan" checked> Entry, stop and targets</label>
+          <label><input type="checkbox" data-layer="filled"> Show filled and broken zones</label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Latest events</h2>
+        <ol id="events"></ol>
+      </section>
+    </aside>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-market" role="tabpanel" aria-labelledby="tab-btn-market" hidden>
+    <section id="strategy" class="card">
+      <h2>Today's market: news, sectors and what to trade</h2>
+      <p class="lead">The strategy runs top down: the news and macro drivers score each sector, the board ranks today's bullish and bearish niches, the shortlist picks liquid names inside the strongest ones, and Timeframe Alignment on the Chart tab times the entry. Click a ticker to open its chart.</p>
+      <div id="drivers"></div>
+      <div class="strat-grid">
+        <section><h3>Sector board</h3><div id="board"></div></section>
+        <section><h3>Shortlist</h3><div id="shortlist"></div></section>
+      </div>
+    </section>
+  </div>
+
+  <div class="tab-panel" id="tab-news" role="tabpanel" aria-labelledby="tab-btn-news" hidden>
     <section id="context" class="card">
       <h2>News and macro behind the entry</h2>
       <p class="lead">What could move this market apart from the chart: yields, the Fed, earnings, headlines and politics. Each item says which way it leans and links to where it came from.</p>
       <div id="context-body"></div>
     </section>
+  </div>
 
+  <div class="tab-panel" id="tab-glossary" role="tabpanel" aria-labelledby="tab-btn-glossary" hidden>
     <section id="glossary" class="card">
       <h2>What the chart shows</h2>
       <p class="lead">Each marking below matches its colour on the chart. None of them is a signal on its own: traders look for several lining up (the Entry Check does this for you) and always plan the stop first.</p>
@@ -205,60 +273,7 @@
         <dt>Deep research</dt><dd>Optional. Claude searches the web, reads the sources and writes a cited bull and bear case with upcoming catalysts. It counts as the heaviest context input for an hour.</dd>
       </dl>
     </section>
-    </div>
-
-    <aside>
-      <section class="card" id="alignment-card">
-        <h2>Timeframe Alignment</h2>
-        <div id="alignment"></div>
-      </section>
-
-      <section class="card" id="summary">
-        <h2>Right now</h2>
-        <dl>
-          <dt>Price</dt><dd id="s-price">–</dd>
-          <dt>Structure</dt><dd id="s-trend">–</dd>
-          <dt>Higher timeframe</dt><dd id="s-htf">–</dd>
-          <dt>Dealing range</dt><dd id="s-zone">–</dd>
-          <dt>Session</dt><dd id="s-kz">–</dd>
-          <dt>ATR (14)</dt><dd id="s-atr">–</dd>
-          <dt>Relative volume</dt><dd id="s-rvol">–</dd>
-        </dl>
-      </section>
-
-      <section class="card" id="entry-check">
-        <h2>Entry Check</h2>
-        <div id="alert" role="status" hidden></div>
-        <div id="setups"></div>
-      </section>
-
-      <section class="card" id="confidence-card">
-        <h2>Confidence</h2>
-        <div id="confidence"></div>
-      </section>
-
-      <section class="card">
-        <h2>Layers</h2>
-        <div id="layers">
-          <label><input type="checkbox" data-layer="structure" checked> BOS / CHoCH</label>
-          <label><input type="checkbox" data-layer="fvg" checked> Fair value gaps</label>
-          <label><input type="checkbox" data-layer="ob" checked> Order blocks</label>
-          <label><input type="checkbox" data-layer="liquidity" checked> Resting liquidity</label>
-          <label><input type="checkbox" data-layer="sweeps" checked> Sweeps</label>
-          <label><input type="checkbox" data-layer="range" checked> Premium / discount</label>
-          <label><input type="checkbox" data-layer="killzones"> Killzones</label>
-          <label><input type="checkbox" data-layer="vwap" checked> VWAP and bands</label>
-          <label><input type="checkbox" data-layer="profile"> Volume profile</label>
-          <label><input type="checkbox" data-layer="plan" checked> Entry, stop and targets</label>
-          <label><input type="checkbox" data-layer="filled"> Show filled and broken zones</label>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Latest events</h2>
-        <ol id="events"></ol>
-      </section>
-    </aside>
+  </div>
   </main>
 
   <footer>
@@ -267,6 +282,7 @@
   </footer>
 
   <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/tabs.js"></script>
   <script src="/static/strategy.js"></script>
   <script src="/static/app.js"></script>
 </body>
