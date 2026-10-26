@@ -58,7 +58,9 @@ def analyse(
         "swings": [{**asdict(s), "time": t(s.index)} for s in structure.swings],
         "structure": [{**asdict(e), "time": t(e.index), "swing_time": t(e.swing_index)} for e in structure.events],
         "fvgs": [{**asdict(g), "time": t(g.index), "filled_time": t(g.filled_at)} for g in fvgs],
-        "order_blocks": [{**asdict(b), "time": t(b.index), "end_time": t(b.broken_at)} for b in blocks],
+        "order_blocks": [
+            {**asdict(b), "time": t(b.index), "end_time": t(b.broken_at), "event_time": t(b.event_index)} for b in blocks
+        ],
         "liquidity": [
             {**asdict(lv), "time": t(lv.index), "swept_time": t(lv.swept_at)} for lv in liquidity.levels
         ],

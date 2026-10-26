@@ -4,6 +4,7 @@ Run:  uvicorn app.main:app --reload          (live Hyperliquid data)
       MA_DEMO=1 uvicorn app.main:app         (offline synthetic data)
 """
 
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from .analyze import analyse
 from .context import ResearchUnavailable, get_context, run_research, score_setup
 from .context.factor import Factor
 from .demo import demo_candles
+from .detectors.sessions import extended_session, regular_hours
 from .hyperliquid import HyperliquidError, fetch_candles
 from .models import INTERVAL_MS
 from .setups import HIGHER_TIMEFRAME
@@ -64,26 +66,37 @@ def resolve(coin: str) -> Asset:
                  f"{name} stock" if kind == "stock" else f"{name} crypto price", (name.lower(),))
 
 
-async def load(coin: str, interval: str, limit: int):
-    """Candles and where they came from. Stocks and ETFs chart the real shares from Yahoo Finance (with pre-market
-    and after-hours), falling back to Hyperliquid's stock perps; crypto is the other way round."""
+async def load(coin: str, interval: str, limit: int, ext: bool = False):
+    """Candles and where they came from. Stocks and ETFs chart the real shares from Yahoo Finance, falling back to
+    Hyperliquid's stock perps; crypto is the other way round. For stocks, `ext` keeps pre-market, after-hours and
+    overnight bars; without it only regular-session bars come back."""
     if interval not in INTERVAL_MS:
         raise HTTPException(400, f"interval must be one of {', '.join(INTERVAL_MS)}")
     asset = resolve(coin)
+    stock = asset.kind != "crypto"
+
+    # Yahoo leaves extended hours out itself; demo data and the perps trade round the clock, so those are fetched
+    # deeper and filtered down to the regular session
+    trim = stock and not ext
+    deep = min(5000, limit * 5) if trim else limit
+
+    def regular_only(data):
+        return [c for c in data if regular_hours(c.t, INTERVAL_MS[interval])][-limit:] if trim else data
+
     if DEMO:
-        return demo_candles(interval, limit, seed=sum(map(ord, asset.coin))), "demo"
+        return regular_only(demo_candles(interval, deep, seed=sum(map(ord, asset.coin)))), "demo"
 
     async def from_yahoo():
-        return await yahoo.fetch_candles(asset.yahoo, interval, limit), "yahoo"
+        return await yahoo.fetch_candles(asset.yahoo, interval, limit, prepost=ext or not stock), "yahoo"
 
     async def from_hyperliquid():
-        data = await fetch_candles(asset.coin, interval, limit)
+        data = await fetch_candles(asset.coin, interval, deep)
         if not data:
             raise HyperliquidError(f"Hyperliquid has no candles for {asset.coin}")
-        return data, "hyperliquid"
+        return regular_only(data), "hyperliquid"
 
-    order = [from_hyperliquid, from_yahoo] if asset.kind == "crypto" else [from_yahoo, from_hyperliquid]
-    if asset.kind != "crypto" and interval not in yahoo.PLAN:
+    order = [from_yahoo, from_hyperliquid] if stock else [from_hyperliquid, from_yahoo]
+    if stock and interval not in yahoo.PLAN:
         order.reverse()  # Yahoo has no 3m, 2h, 8h or 12h bars
     errors = []
     for source in order:
@@ -97,14 +110,31 @@ async def load(coin: str, interval: str, limit: int):
     raise HTTPException(502, "; ".join(errors))
 
 
+async def extended_quote(coin: str, interval: str, bars) -> dict | None:
+    """The latest pre-market or after-hours price against the last regular close, while the regular session is shut.
+    Daily bars hold no extended hours, so those read the 5m bars instead."""
+    if interval == "1d":
+        try:
+            bars = (await load(coin, "5m", 200, ext=True))[0]
+        except HTTPException:
+            return None
+    span = INTERVAL_MS["5m" if interval == "1d" else interval]
+    if not bars or regular_hours(bars[-1].t, span):
+        return None
+    last = bars[-1]
+    close = next((c.c for c in reversed(bars) if regular_hours(c.t, span)), None)
+    return {"t": last.t, "price": last.c, "session": extended_session(last.t), "regular_close": close,
+            "change_pct": (last.c / close - 1) * 100 if close else None}
+
+
 @app.get("/api/config")
 async def config():
     return {"version": VERSION, "demo": DEMO, "intervals": list(INTERVAL_MS), "watchlist": [a.to_dict() for a in WATCHLIST]}
 
 
 @app.get("/api/candles")
-async def candles(coin: str = "BTC", interval: str = "15m", limit: int = Query(500, ge=10, le=5000)):
-    data, _ = await load(coin, interval, limit)
+async def candles(coin: str = "BTC", interval: str = "15m", limit: int = Query(500, ge=10, le=5000), ext: bool = False):
+    data, _ = await load(coin, interval, limit, ext)
     return [c.to_dict() for c in data]
 
 
@@ -115,11 +145,30 @@ async def analysis(
     limit: int = Query(500, ge=30, le=5000),
     swing_lookback: int = Query(3, ge=1, le=10),
     min_rr: float = Query(2.0, gt=0, le=20),
+    ext: bool = False,
 ):
     asset = resolve(coin)
-    data, source = await load(coin, interval, limit)
+    ext = ext and asset.kind != "crypto"
+    # the detectors and the Entry Check read regular-session bars only (extended hours are thin and gappy), so they
+    # match what they say with the box off; the extended-hours bars in the same window are added for the chart
+    wide = []
+    if ext:
+        regular, extended = await asyncio.gather(load(coin, interval, limit),
+                                                 load(coin, interval, min(5000, limit * 5), True), return_exceptions=True)
+        if isinstance(regular, Exception):
+            raise regular
+        data, source = regular
+        if not isinstance(extended, Exception) and extended[1] == source:  # never mix perp prints into share prices
+            wide = extended[0]
+    else:
+        data, source = await load(coin, interval, limit)
     if not data:
         raise HTTPException(404, f"no candles for {coin}")
+    chart = [{**c.to_dict(), "ext": False} for c in data] if ext else [c.to_dict() for c in data]
+    if ext:
+        times = {c.t for c in data}
+        chart += [{**c.to_dict(), "ext": True} for c in wide if c.t >= data[0].t and c.t not in times]
+        chart.sort(key=lambda k: k["t"])
     htf = HIGHER_TIMEFRAME.get(interval)
     htf_data = (await load(coin, htf, 300))[0] if htf else None
     try:
@@ -128,7 +177,8 @@ async def analysis(
         raise HTTPException(422, str(exc)) from exc
     _setups[f"{asset.ticker}:{interval}"] = report["setups"]
     return {"coin": coin, "interval": interval, "htf_interval": htf, "asset": asset.to_dict(), "source": source,
-            "candles": [c.to_dict() for c in data], **report}
+            "ext": ext, "extended": await extended_quote(coin, interval, wide) if ext else None,
+            "candles": chart, **report}
 
 
 @app.get("/api/context")

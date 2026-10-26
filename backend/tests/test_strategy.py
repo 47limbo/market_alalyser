@@ -132,3 +132,61 @@ def test_load_charts_stocks_from_yahoo_first(monkeypatch):
     assert asyncio.run(m.load("BTC", "15m", 10))[1] == "hyperliquid"
     assert asyncio.run(m.load("UNH", "5m", 10))[1] == "yahoo" and m.resolve("UNH").kind == "stock"
     assert calls == [("yahoo", "NVDA"), ("hl", "BTC"), ("yahoo", "UNH")]
+
+
+def _ny_ms(y, mo, d, h, mi=0):
+    from zoneinfo import ZoneInfo
+    return int(datetime(y, mo, d, h, mi, tzinfo=ZoneInfo("America/New_York")).timestamp() * 1000)
+
+
+def test_regular_hours_and_extended_sessions():
+    from app.detectors.sessions import extended_session, regular_hours
+
+    m15, day = 900_000, 86_400_000
+    assert regular_hours(_ny_ms(2026, 10, 26, 9, 30), m15)  # Monday open
+    assert not regular_hours(_ny_ms(2026, 10, 26, 9, 15), m15)  # 9:15 to 9:30 is pre-market
+    assert regular_hours(_ny_ms(2026, 10, 26, 9, 0), 3_600_000)  # an hour bar that runs into the open
+    assert not regular_hours(_ny_ms(2026, 10, 26, 16, 0), m15)
+    assert not regular_hours(_ny_ms(2026, 10, 24, 11, 0), m15)  # Saturday
+    assert regular_hours(_ny_ms(2026, 10, 26, 0, 0), day)
+    assert extended_session(_ny_ms(2026, 10, 26, 7, 0)) == "Pre-market"
+    assert extended_session(_ny_ms(2026, 10, 26, 17, 0)) == "After-hours"
+    assert extended_session(_ny_ms(2026, 10, 26, 22, 0)) == "Overnight"
+
+
+def test_load_keeps_or_drops_extended_hours(monkeypatch):
+    import app.main as m
+
+    bars = [Candle(_ny_ms(2026, 10, 26, h, 0), 1, 1, 1, 1, 1) for h in (7, 10, 17)]
+    asks = []
+
+    async def yahoo_fetch(symbol, interval, limit, prepost=True, **kw):
+        asks.append(prepost)
+        raise m.yahoo.YahooError("down")
+
+    async def hl_fetch(coin, interval, limit):
+        return bars
+
+    monkeypatch.setattr(m, "DEMO", False)
+    monkeypatch.setattr(m.yahoo, "fetch_candles", yahoo_fetch)
+    monkeypatch.setattr(m, "fetch_candles", hl_fetch)
+    assert len(asyncio.run(m.load("NVDA", "1h", 10))[0]) == 1  # the perp's off-hours bars are dropped
+    assert len(asyncio.run(m.load("NVDA", "1h", 10, ext=True))[0]) == 3
+    assert len(asyncio.run(m.load("BTC", "1h", 10))[0]) == 3  # crypto has no sessions
+    assert asks == [False, True]
+
+
+def test_analysis_marks_extended_candles_and_reads_regular_hours(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import app.main as m
+    from app.detectors.sessions import regular_hours
+
+    monkeypatch.setattr(m, "DEMO", True)
+    client = TestClient(m.app)
+    r = client.get("/api/analysis?coin=NVDA&interval=15m&ext=true").json()
+    assert r["ext"] and any(k["ext"] for k in r["candles"]) and not all(k["ext"] for k in r["candles"])
+    assert all(regular_hours(s["time"], 900_000) for s in r["swings"])
+    plain = client.get("/api/analysis?coin=NVDA&interval=15m").json()
+    assert not plain["ext"] and plain["extended"] is None and "ext" not in plain["candles"][0]
+    assert not client.get("/api/analysis?coin=BTC&interval=15m&ext=true").json()["ext"]
