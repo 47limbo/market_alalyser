@@ -69,7 +69,7 @@
         <h2>Entry Check</h2>
         <div id="alert" role="status" hidden></div>
         <div id="setups"></div>
-        <p class="muted small" id="ext-note" hidden>Reads regular-hours candles only. The faded candles on the orange band are pre-market and after-hours trading, shown for reference.</p>
+        <p class="muted small" id="ext-note" hidden>Reads regular-hours candles only. The faded candles are pre-market and after-hours trading, shown for reference.</p>
       </section>
 
       <section class="card" id="confidence-card">
@@ -226,8 +226,8 @@
           <p><em>How to use it.</em> Prefer setups that form inside London or New York killzones. Be wary of signals in quiet hours.</p>
         </article>
         <article>
-          <header><span class="sw sw-box" style="background:rgba(255,138,0,0.14)"></span><span class="tag" style="background:var(--accent);color:var(--accent-ink)">Pre-market</span><b>Pre-market and after-hours</b></header>
-          <p><em>What it is.</em> Stock trading outside the regular session: pre-market from 4am to 9:30am and after-hours from 4pm to 8pm New York time. These candles are faded and sit on a faint orange band, and the dashed orange line marks the latest pre-market or after-hours price, with its change from the last regular close under Price. Turn them off with the Pre and after hours box at the top. Daily candles never include them, but the dashed line still shows.</p>
+          <header><span class="sw sw-candle" style="opacity:.45"></span><span class="tag" style="background:var(--accent);color:var(--accent-ink)">Pre-market</span><b>Pre-market and after-hours</b></header>
+          <p><em>What it is.</em> Stock trading outside the regular session: pre-market from 4am to 9:30am and after-hours from 4pm to 8pm New York time. These candles are drawn faded, and the dashed orange line marks the latest pre-market or after-hours price, with its change from the last regular close under Price. Turn them off with the Pre and after hours box at the top. Daily candles never include them, but the dashed line still shows.</p>
           <p><em>Effect.</em> Volume is thin, so prices can jump on a single headline and gaps between candles are common. A big pre-market move on news often sets the opening gap.</p>
           <p><em>How to use it.</em> Read it as a preview of the open, not as a signal. The Entry Check, Timeframe Alignment, VWAP and the other markings use regular-hours candles only, so thin overnight prints don't create fake swings or zones.</p>
         </article>
