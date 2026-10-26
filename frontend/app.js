@@ -22,10 +22,9 @@
     ote: "#00a3bf",
     oteFill: "rgba(0,163,191,0.06)",
     kz: dark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.03)",
-    // pre-market and after-hours: faded candles on a faint orange band
+    // pre-market and after-hours candles are faded
     extBull: "rgba(8,153,129,0.4)",
     extBear: "rgba(242,54,69,0.4)",
-    extBand: "rgba(255,138,0,0.07)",
     extLine: "#ff8a00",
     profile: dark ? "rgba(148,163,184,0.3)" : "rgba(120,123,134,0.22)",
     poc: dark ? "rgba(148,163,184,0.7)" : "rgba(120,123,134,0.6)",
@@ -64,7 +63,6 @@
   let refreshTimer = null;
   let pollTimer = null;
   let extLine = null; // the dashed pre-market / after-hours price line
-  let extSpans = []; // runs of extended-hours candles, for the shaded band
 
   const layerOn = (name) => document.querySelector(`[data-layer="${name}"]`).checked;
   const sec = (ms) => Math.floor(ms / 1000);
@@ -137,14 +135,6 @@
       time: sec(k.t), value: k.v, color: k.c >= k.o ? `rgba(8,153,129,${k.ext ? 0.12 : 0.3})` : `rgba(242,54,69,${k.ext ? 0.12 : 0.3})`,
     })));
     lastBarTime = r.candles.at(-1).t;
-    extSpans = [];
-    r.candles.forEach((k, i) => {
-      if (!k.ext) return;
-      const run = extSpans.at(-1);
-      if (run && run.end === i - 1) run.end = i;
-      else extSpans.push({ start: i, end: i });
-    });
-    extSpans = extSpans.map((run) => ({ start: r.candles[run.start].t, end: r.candles[run.end].t }));
     renderExtended(r);
 
     const markers = [];
@@ -161,8 +151,13 @@
     markers.sort((a, b) => a.time - b.time);
     candles.setMarkers(markers);
 
-    // start zoomed on the most recent candles, where the annotations matter
-    if (fit) chart.timeScale().setVisibleLogicalRange({ from: r.candles.length - RECENT, to: r.candles.length + 14 });
+    if (fit) {
+      // a new market or timeframe: undo any drag on the price axis so the candles are in view, and start zoomed
+      // on the most recent candles, where the annotations matter
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.priceScale("vol").applyOptions({ autoScale: true });
+      chart.timeScale().setVisibleLogicalRange({ from: r.candles.length - RECENT, to: r.candles.length + 14 });
+    }
     renderSummary(r);
     renderSetups(r);
     renderEvents(r);
@@ -530,15 +525,6 @@
     const price = r.last.price;
     const showDead = layerOn("filled");
     const since = r.candles[Math.max(0, r.candles.length - RECENT)].t;
-
-    // half a bar either side, so the band covers the whole candle
-    const half = chart.timeScale().options().barSpacing / 2;
-    for (const s of extSpans) {
-      const x0 = x(s.start), x1 = x(s.end);
-      if (x0 == null || x1 == null) continue;
-      ctx.fillStyle = C.extBand;
-      ctx.fillRect(x0 - half, 0, x1 - x0 + 2 * half, plotBottom());
-    }
 
     if (layerOn("killzones")) {
       for (const k of r.killzones) {
