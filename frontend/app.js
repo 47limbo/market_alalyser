@@ -251,34 +251,57 @@
     }).join("") + `<p class="muted small">Details and sources are on the <button type="button" class="link-btn" data-goto="news">News tab</button>.</p>`;
   }
 
+  // one titled section of the News tab
+  const block = (title, sub, body) =>
+    `<section class="block"><header class="block-head"><h3>${title}</h3>${sub ? `<p>${sub}</p>` : ""}</header><div class="block-body">${body}</div></section>`;
+
   function renderContext(ctx) {
     const signal = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", risk: "Event risk" };
-    let html = "";
-    {
-      // the asset's own news first and full width, then everything else
-      const order = (f) => f.key === "news" ? 0 : f.key === "macro_news" ? 2 : 1;
-      const factors = ctx.factors.filter((f) => f.group !== "Deep research").sort((a, b) => order(a) - order(b));
-      html += `<div class="factors">` + factors.map((f) => {
-        if (f.key === "news") {
-          // one box per story: the headline as its title, the publisher's summary inside
-          const stories = f.sources.map((s) => {
-            const t = s.tone > 0 ? "bullish" : s.tone < 0 ? "bearish" : "neutral";
-            return `<article class="story"><header><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><span class="sig sig-${t}">${signal[t]}</span></header>
-              <p>${s.summary ? esc(s.summary) : '<span class="muted">No summary in the feed. Open the story to read it.</span>'}</p>
-              <footer>${esc(s.source)}${s.published ? ` · ${ago(s.published)}` : ""}</footer></article>`;
-          }).join("");
-          return `<article class="factor wide"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)} Tone is read from each headline's wording.</p><div class="stories">${stories || '<p class="muted">No stories naming it in the last 2 days.</p>'}</div></article>`;
-        }
-        const isNews = f.group === "Macro and politics";
-        const sources = f.sources.length ? (isNews
-          ? `<ul class="headlines">${f.sources.map((s) => `<li><span class="tone ${s.tone > 0 ? "bull" : s.tone < 0 ? "bear" : ""}">${s.tone > 0 ? "▲" : s.tone < 0 ? "▼" : "•"}</span>${link(s)} <small>${esc(s.source)} ${ago(s.published)}</small></li>`).join("")}</ul>`
-          : `<p class="src">Source: ${f.sources.map(link).join(" · ")}</p>`) : "";
-        return `<article class="factor${f.key === "news" ? " wide" : ""}"><small class="group">${esc(f.group)}</small><header><b>${esc(f.label)}</b><span class="sig sig-${f.signal}">${signal[f.signal]}</span></header><p>${esc(f.detail)}</p>${sources}</article>`;
-      }).join("") + "</div>";
+    const factors = ctx.factors.filter((f) => f.group !== "Deep research");
+    const own = factors.find((f) => f.key === "news");
+    const macro = factors.find((f) => f.key === "macro_news");
+    const backdrop = factors.filter((f) => f !== own && f !== macro);
+    el("news-title").textContent = `for ${ctx.asset.ticker}`;
+
+    // the overall read and a count of which way the factors lean
+    const counts = ["bullish", "bearish", "neutral", "risk"].map((k) => [k, factors.filter((f) => f.signal === k).length]).filter(([, n]) => n);
+    let html = `<div class="ctx-sum">
+      <div><small>Overall read for ${esc(ctx.asset.ticker)}</small><b class="${ctx.bias > 0.1 ? "bull" : ctx.bias < -0.1 ? "bear" : ""}">${esc(ctx.bias_label)}</b></div>
+      <div class="ctx-counts">${counts.map(([k, n]) => `<span class="sig sig-${k}">${n} ${signal[k].toLowerCase()}</span>`).join("")}</div>
+      <small class="muted">${ctx.demo ? "Demo data" : `Updated ${ago(ctx.fetched)}`}</small></div>`;
+
+    if (own) {
+      // one box per story: the headline as its title, the publisher's summary inside
+      const stories = own.sources.map((s) => {
+        const t = s.tone > 0 ? "bullish" : s.tone < 0 ? "bearish" : "neutral";
+        return `<article class="story story-${t}"><header><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><span class="sig sig-${t}">${signal[t]}</span></header>
+          <p>${s.summary ? esc(s.summary) : '<span class="muted">No summary in the feed. Open the story to read it.</span>'}</p>
+          <footer>${esc(s.source)}${s.published ? ` · ${ago(s.published)}` : ""}</footer></article>`;
+      }).join("");
+      html += block(`${esc(own.label)} <span class="sig sig-${own.signal}">${signal[own.signal]}</span>`, `${esc(own.detail)} Tone is read from each headline's wording.`,
+        `<div class="stories">${stories || '<p class="muted">No stories naming it in the last 2 days.</p>'}</div>`);
     }
-    html += renderResearch(ctx);
-    if (ctx.missing.length) html += `<p class="muted small">Not reachable just now, left out of the score: ${ctx.missing.map(esc).join("; ")}.</p>`;
-    html += `<p class="muted small">${ctx.demo ? "Demo mode: these numbers are made up so you can see the layout." : `Fetched ${ago(ctx.fetched)}; refreshed every 10 minutes.`} Headline tone is read from keywords, so open the stories before relying on them.</p>`;
+
+    if (backdrop.length) {
+      const rows = backdrop.map((f) => `<li class="fx">
+        <span class="sig sig-${f.signal}">${signal[f.signal]}</span>
+        <div><small class="group">${esc(f.group)}</small><b>${esc(f.label)}</b><p>${esc(f.detail)}</p>
+          ${f.sources.length ? `<p class="src">Source: ${f.sources.map(link).join(" · ")}</p>` : ""}</div></li>`).join("");
+      html += block("Rates, Fed and fundamentals", "The market-wide and company factors behind the score, each with the way it leans.", `<ul class="fxs">${rows}</ul>`);
+    }
+
+    if (macro) {
+      const heads = macro.sources.map((s) => `<li><span class="tone ${s.tone > 0 ? "bull" : s.tone < 0 ? "bear" : "muted"}">${s.tone > 0 ? "▲" : s.tone < 0 ? "▼" : "•"}</span>
+        <span>${link(s)}<small>${esc(s.source)}${s.published ? ` · ${ago(s.published)}` : ""}</small></span></li>`).join("");
+      html += block(`${esc(macro.label)} <span class="sig sig-${macro.signal}">${signal[macro.signal]}</span>`, esc(macro.detail),
+        heads ? `<ul class="headlines">${heads}</ul>` : '<p class="muted">No headlines just now.</p>');
+    }
+
+    html += block("Deep research", "", renderResearch(ctx));
+    const notes = [];
+    if (ctx.missing.length) notes.push(`Not reachable just now, left out of the score: ${ctx.missing.map(esc).join("; ")}.`);
+    notes.push(`${ctx.demo ? "Demo mode: these numbers are made up so you can see the layout." : `Fetched ${ago(ctx.fetched)}; refreshed every 10 minutes.`} Headline tone is read from keywords, so open the stories before relying on them.`);
+    html += `<p class="note">${notes.join(" ")}</p>`;
     el("context-body").innerHTML = html;
     const btn = el("research-btn");
     if (btn) btn.addEventListener("click", runResearch);
@@ -286,7 +309,7 @@
 
   function renderResearch(ctx) {
     const b = ctx.research;
-    let html = '<h3>Deep research</h3>';
+    let html = "";
     if (!b) {
       if (!ctx.research_available) {
         return html + '<p class="muted">Claude can search the web and read the stories for you, then write a cited bull and bear case. Add <code>ANTHROPIC_API_KEY=...</code> to the <code>.env</code> file next to run.py and restart to turn it on. Each run uses API credit, roughly $0.25 to $1.50.</p>';

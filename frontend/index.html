@@ -103,23 +103,34 @@
   </div>
 
   <div class="tab-panel" id="tab-market" role="tabpanel" aria-labelledby="tab-btn-market" hidden>
-    <section id="strategy" class="card">
-      <h2>Today's market: news, sectors and what to trade</h2>
-      <p class="lead">The strategy runs top down: the news and macro drivers score each sector, the board ranks today's bullish and bearish niches, the shortlist picks liquid names inside the strongest ones, and Timeframe Alignment on the Chart tab times the entry. Click a ticker to open its chart.</p>
+    <div id="strategy" class="page">
+      <header class="page-head">
+        <h2>Market today</h2>
+        <p class="lead">What is moving the market, which sectors it favours, and the names worth trading inside them. Click any ticker to open its chart.</p>
+        <ol class="flow" aria-label="How the strategy runs">
+          <li>Drivers and news</li><li>Sector board</li><li>Shortlist</li><li>Timeframe Alignment <small>(Chart tab)</small></li>
+        </ol>
+      </header>
       <div id="drivers"></div>
-      <div class="strat-grid">
-        <section><h3>Sector board</h3><div id="board"></div></section>
-        <section><h3>Shortlist</h3><div id="shortlist"></div></section>
-      </div>
-    </section>
+      <section class="block">
+        <header class="block-head"><h3>Sector board</h3><p>Today's niches ranked from most bullish to most bearish. Click a row to see why.</p></header>
+        <div class="block-body" id="board"></div>
+      </section>
+      <section class="block">
+        <header class="block-head"><h3>Shortlist</h3><p>Liquid names inside the two strongest and two weakest niches, checked one by one. Click a card to open its chart.</p></header>
+        <div class="block-body" id="shortlist"></div>
+      </section>
+    </div>
   </div>
 
   <div class="tab-panel" id="tab-news" role="tabpanel" aria-labelledby="tab-btn-news" hidden>
-    <section id="context" class="card">
-      <h2>News and macro behind the entry</h2>
-      <p class="lead">What could move this market apart from the chart: yields, the Fed, earnings, headlines and politics. Each item says which way it leans and links to where it came from.</p>
+    <div id="context" class="page">
+      <header class="page-head">
+        <h2>News and macro <span id="news-title"></span></h2>
+        <p class="lead">What could move this market apart from the chart: headlines, yields, the Fed, earnings and politics. Each item says which way it leans and links to where it came from.</p>
+      </header>
       <div id="context-body"></div>
-    </section>
+    </div>
   </div>
 
   <div class="tab-panel" id="tab-glossary" role="tabpanel" aria-labelledby="tab-btn-glossary" hidden>
