@@ -28,6 +28,7 @@ from .demo import demo_candles
 from .detectors.sessions import extended_session, regular_hours
 from .hyperliquid import HyperliquidError, fetch_candles
 from .models import INTERVAL_MS
+from .positions import Position, fetch_quotes, load_positions, save_positions
 from .setups import HIGHER_TIMEFRAME
 from .strategy import get_alignment, get_board, get_shortlist, latest_alignment
 from .strategy.universe import name_of, niches_of
@@ -61,8 +62,10 @@ def resolve(coin: str) -> Asset:
         etf = any(n.etf == name for n in niches_of(name))
         return Asset(name, f"xyz:{name}", "etf" if etf else "stock", full, name, f'"{full}" OR {name} stock',
                      tuple({name.lower(), full.lower()}))
-    kind = "stock" if ":" in coin else "crypto"
-    return Asset(name, coin, kind, name, name if kind == "stock" else f"{name}-USD",
+    # a stock held on the Positions tab charts as a stock even when the sector board does not know it
+    held = ":" not in coin and any(p.symbol == name and p.kind == "stock" for p in load_positions())
+    kind = "stock" if ":" in coin or held else "crypto"
+    return Asset(name, f"xyz:{name}" if held else coin, kind, name, name if kind == "stock" else f"{name}-USD",
                  f"{name} stock" if kind == "stock" else f"{name} crypto price", (name.lower(),))
 
 
@@ -247,6 +250,20 @@ async def research(coin: str = "BTC"):
     except ResearchUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     return {"ok": True}
+
+
+@app.get("/api/positions")
+async def positions():
+    """The saved holdings (the Wall Street Survivor portfolio until edited) with a live quote for each."""
+    held = load_positions()
+    return {"positions": [p.model_dump() for p in held], "quotes": await fetch_quotes(held, DEMO), "demo": DEMO}
+
+
+@app.put("/api/positions")
+async def put_positions(held: list[Position]):
+    """Replace the saved holdings with the list the Positions tab sends."""
+    save_positions(held)
+    return {"positions": [p.model_dump() for p in held], "quotes": await fetch_quotes(held, DEMO), "demo": DEMO}
 
 
 @app.get("/")

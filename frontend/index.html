@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Market Analyser</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/positions.css">
 </head>
 <body>
   <header class="top">
@@ -35,6 +36,7 @@
     <button type="button" role="tab" id="tab-btn-market" data-tab="market" aria-controls="tab-market">Market today</button>
     <button type="button" role="tab" id="tab-btn-news" data-tab="news" aria-controls="tab-news">News <span id="news-ticker"></span></button>
     <button type="button" role="tab" id="tab-btn-glossary" data-tab="glossary" aria-controls="tab-glossary">Glossary</button>
+    <button type="button" role="tab" id="tab-btn-positions" data-tab="positions" aria-controls="tab-positions">My positions</button>
   </nav>
 
   <main>
@@ -283,6 +285,33 @@
       </dl>
     </section>
   </div>
+  <div class="tab-panel" id="tab-positions" role="tabpanel" aria-labelledby="tab-btn-positions" hidden>
+    <div class="pos-head">
+      <div>
+        <h2>My positions</h2>
+        <p class="muted small">Valued at live prices: stocks and ETFs from Yahoo Finance, crypto from Hyperliquid. Updates every 30 seconds. Click a symbol to open its chart.</p>
+      </div>
+      <div class="pos-meta"><span id="pos-updated" class="muted small"></span> <button type="button" class="ghost" id="pos-refresh">Refresh</button></div>
+    </div>
+    <p class="error" id="pos-error" role="alert" hidden></p>
+    <div class="pos-summary" id="pos-summary"></div>
+    <div id="pos-tables"></div>
+
+    <section class="card pos-form-card">
+      <h2 id="pos-form-title">Add a position</h2>
+      <form id="pos-form" class="pos-form" autocomplete="off">
+        <label>Symbol <input name="symbol" required maxlength="20" placeholder="AAPL"></label>
+        <label>Type <select name="kind"><option value="stock">Stock or ETF</option><option value="crypto">Crypto</option></select></label>
+        <label>Side <select name="side"><option value="long">Long (bought)</option><option value="short">Short (sold)</option></select></label>
+        <label>Quantity <input name="qty" type="number" required min="0" step="any" placeholder="10"></label>
+        <label>Price paid <input name="cost" type="number" required min="0" step="any" placeholder="150.00"></label>
+        <label>Stop price <input name="stop" type="number" min="0" step="any" placeholder="optional"></label>
+        <label class="wide">Note <input name="note" maxlength="200" placeholder="optional, e.g. earnings play"></label>
+        <div class="pos-form-buttons"><button type="submit" id="pos-submit">Add position</button> <button type="button" class="ghost" id="pos-cancel" hidden>Cancel</button></div>
+      </form>
+      <p class="muted small">This tracks positions only. It never places or changes orders at your broker, so update a row here after you trade.</p>
+    </section>
+  </div>
   </main>
 
   <footer>
@@ -293,6 +322,7 @@
   <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
   <script src="/static/tabs.js"></script>
   <script src="/static/strategy.js"></script>
+  <script src="/static/positions.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
