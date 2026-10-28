@@ -135,6 +135,14 @@ async def config():
     return {"version": VERSION, "demo": DEMO, "intervals": list(INTERVAL_MS), "watchlist": [a.to_dict() for a in WATCHLIST]}
 
 
+@app.get("/api/quotes")
+async def quotes():
+    """A live price and the day's move for each watchlist ticker, for the chips under the controls."""
+    tickers = [Position(symbol=a.ticker, kind="crypto" if a.kind == "crypto" else "stock", qty=1, cost=100)
+               for a in WATCHLIST]
+    return await fetch_quotes(tickers, DEMO)
+
+
 @app.get("/api/candles")
 async def candles(coin: str = "BTC", interval: str = "15m", limit: int = Query(500, ge=10, le=5000), ext: bool = False):
     data, _ = await load(coin, interval, limit, ext)

@@ -186,15 +186,35 @@
   // ---- watchlist ----
 
   function renderWatchlist(list) {
-    const groups = { stock: "Stocks", etf: "Indexes", crypto: "Crypto" };
+    const groups = { stock: "Stocks", etf: "Indices", crypto: "Crypto" };
     el("watchlist").innerHTML = Object.entries(groups).map(([kind, title]) =>
-      `<span class="wl-group" title="${title}">${list.filter((a) => a.kind === kind).map((a) =>
-        `<button type="button" class="chip" data-ticker="${a.ticker}" title="${a.name} · chart: ${a.coin}">${a.ticker}</button>`).join("")}</span>`).join("");
+      `<div class="wl-group"><span class="wl-label">${title}</span><div class="wl-chips">${list.filter((a) => a.kind === kind).map((a) =>
+        `<button type="button" class="chip" data-ticker="${a.ticker}" title="${a.name} · chart: ${a.coin}">
+          <span class="chip-top"><b>${a.ticker}</b><span class="chip-pct"></span></span><span class="chip-price">–</span></button>`).join("")}</div></div>`).join("");
     el("watchlist").addEventListener("click", (e) => {
       const b = e.target.closest("[data-ticker]");
       if (!b) return;
       el("coin").value = b.dataset.ticker;
       load();
+    });
+    refreshQuotes();
+    setInterval(() => { if (!document.hidden) refreshQuotes(); }, 30_000);
+  }
+
+  // live price and the day's % change on each chip, tinted green or red
+  async function refreshQuotes() {
+    let quotes;
+    try { quotes = await (await fetch("/api/quotes")).json(); } catch { return; }  // keep the last prices
+    document.querySelectorAll("#watchlist .chip").forEach((b) => {
+      const q = quotes[b.dataset.ticker];
+      if (!q || q.price == null) return;
+      const pct = q.prev_close ? (q.price / q.prev_close - 1) * 100 : null;
+      b.querySelector(".chip-price").textContent = q.price < 10 ? fmt(q.price)
+        : q.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      b.querySelector(".chip-pct").textContent = pct == null ? "" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+      b.classList.toggle("up", pct > 0);
+      b.classList.toggle("down", pct < 0);
+      b.classList.toggle("stale", !!q.stale);
     });
   }
 
