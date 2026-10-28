@@ -1,6 +1,6 @@
-// The page tabs: Chart, Market today, News and Glossary. The open tab is remembered, so a refresh lands where you were.
+// The page tabs: Chart, Market today, News, Glossary and My positions. The open tab is remembered, so a refresh lands where you were.
 window.Tabs = (() => {
-  const TABS = ["chart", "market", "news", "glossary"];
+  const TABS = ["chart", "market", "news", "glossary", "positions"];
   const KEY = "ma-tab";
 
   function show(name, remember = true) {

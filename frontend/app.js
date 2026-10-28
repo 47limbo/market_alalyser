@@ -794,6 +794,8 @@
   resizeOverlay();
   requestAnimationFrame(loop);
 
-  window.Strategy?.init({ open: (ticker) => { el("coin").value = ticker; window.Tabs?.show("chart"); load(); } });
+  const openChart = (ticker) => { el("coin").value = ticker; window.Tabs?.show("chart"); load(); };
+  window.Strategy?.init({ open: openChart });
+  window.Positions?.init({ open: openChart });
   fetch("/api/config").then((r) => r.json()).then((cfg) => { state.demo = cfg.demo; el("version").textContent = `v${cfg.version}`; renderWatchlist(cfg.watchlist); load(); });
 })();

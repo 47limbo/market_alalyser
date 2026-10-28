@@ -1,0 +1,60 @@
+/* The My positions tab. Uses the colours from style.css. */
+#tab-positions { display: flex; flex-direction: column; gap: 16px; }
+#tab-positions[hidden] { display: none; }
+#tab-positions .bull { color: #22c08f; }
+#tab-positions .bear { color: #ff5a66; }
+
+.pos-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.pos-head h2 { font-size: 18px; margin: 0 0 4px; }
+.pos-head p { margin: 0; max-width: 70ch; }
+.pos-meta { display: flex; align-items: center; gap: 10px; }
+#pos-error { margin: 0; }
+
+button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; }
+button.ghost:hover { border-color: var(--accent); color: var(--accent); filter: none; }
+button.ghost.danger:hover { border-color: #f23645; color: #ff5a66; }
+
+/* summary tiles */
+.pos-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.pos-tile { background: var(--panel); border: 1px solid var(--border); border-top: 2px solid var(--accent); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.pos-tile small { color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+.pos-tile b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.pos-tile span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pos-tile span.bull, .pos-tile span.bear { font-weight: 600; }
+
+/* tables */
+.pos-group { padding: 0; overflow: hidden; }
+.pos-group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.pos-group-head h2 { margin: 0; }
+.pos-scroll { overflow-x: auto; }
+.pos-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.pos-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  padding: 8px 12px; background: var(--panel-2); white-space: nowrap; }
+.pos-table td { padding: 10px 12px; border-top: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+.pos-table tbody tr:hover { background: var(--accent-soft); }
+.pos-table tr.editing { background: var(--accent-soft); box-shadow: inset 3px 0 var(--accent); }
+.pos-table .num { text-align: right; }
+.pos-table td small { display: block; font-size: 11px; }
+.pos-sym { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; font-size: 14px; }
+.pos-sym:hover { text-decoration: underline; filter: none; }
+.pos-side { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+.pos-side.long { background: rgba(8,153,129,0.18); color: #22c08f; }
+.pos-side.short { background: rgba(242,54,69,0.18); color: #ff5a66; }
+.pos-near { color: var(--warn); font-weight: 600; }
+.pos-actions { text-align: right; }
+.pos-actions button { padding: 3px 9px; font-size: 12px; }
+
+/* add / edit form */
+.pos-form-card { border-top: 2px solid var(--accent); }
+.pos-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; align-items: end; }
+.pos-form label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; color: var(--muted); text-align: left; }
+.pos-form label.wide { grid-column: span 2; }
+.pos-form input, .pos-form select { width: 100%; box-sizing: border-box; }
+.pos-form-buttons { display: flex; gap: 8px; }
+.pos-form-card > p { margin: 10px 0 0; }
+
+@media (max-width: 560px) {
+  .pos-form label.wide { grid-column: auto; }
+}

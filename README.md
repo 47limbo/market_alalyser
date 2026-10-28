@@ -18,12 +18,13 @@ Longs and shorts both work. Every rule table is plain Python in `backend/app/str
 
 ## The page
 
-The app uses a black and orange theme and splits into four tabs. The market box, timeframe and watchlist at the top work from any tab.
+The app uses a black and orange theme and splits into five tabs. The market box, timeframe and watchlist at the top work from any tab.
 
 - **Chart**: the chart with Timeframe Alignment, Right now, Entry Check, Confidence, Layers and Latest events beside it.
 - **Market today**: the market-wide drivers (yields, oil, dollar, VIX, copper), this week's US economic releases, leaders moving their group, the sector board and the shortlist. Clicking a ticker opens its chart.
 - **News**: the news and macro behind the selected market, with Deep research.
 - **Glossary**: what BOS, CHoCH, FVG, order blocks, liquidity and the other markings mean and how to use them.
+- **My positions**: your holdings valued at live prices (stocks and ETFs from Yahoo Finance, crypto from Hyperliquid), refreshed every 30 seconds: last price, day's change, market value, profit or loss, % return, weight and how far each open stop is. Shorts are entered as a short side and gain when the price falls. Add, edit and remove rows in the form under the tables; the list is saved in `data/positions.json` and starts with the Wall Street Survivor portfolio from 28 Oct 2026. It only tracks: nothing is sent to a broker.
 
 The app remembers which tab was open and returns to it next time.
 
