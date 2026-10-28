@@ -48,30 +48,49 @@ window.Strategy = (() => {
     loadShortlist();
   }
 
+  // one titled section of the Market today page
+  const block = (title, sub, body, extra = "") =>
+    `<section class="block ${extra}"><header class="block-head"><h3>${title}</h3>${sub ? `<p>${sub}</p>` : ""}</header><div class="block-body">${body}</div></section>`;
+  const day = (ms) => new Date(ms).toLocaleString(undefined, { weekday: "short" });
+  const clock = (ms) => new Date(ms).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit" });
+  // "cooler than expected (-1.0 typical misses)." -> "Cooler than expected"
+  const outcome = (note) => { const t = String(note || "").replace(/\s*\(.*$/, "").replace(/\.$/, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
+
   function renderDrivers() {
     const b = board;
     const chips = b.drivers.map((d) => {
       const t = d.z > 0.5 ? "up" : d.z < -0.5 ? "down" : "";
       return `<a class="drv ${t}" href="${esc(d.url)}" target="_blank" rel="noopener" title="${esc(d.change)} (${signed(d.z)} typical days)">
-        <small>${esc(d.label)}</small><b>${esc(d.value)}</b><span>${esc(d.change)}</span></a>`;
+        <small>${esc(d.label)}</small><b>${esc(d.value)}</b><span>${t === "up" ? "▲ " : t === "down" ? "▼ " : ""}${esc(d.change)}</span></a>`;
     }).join("");
     const now = Date.now();
     const releases = b.releases.filter((r) => r.impact === "High" || r.surprise != null).slice(-10).map((r) => {
-      const t = r.surprise == null ? "" : r.surprise > 0.5 ? "hot" : r.surprise < -0.5 ? "cool" : "";
-      return `<li class="${r.time > now ? "later" : ""}"><span class="when">${esc(time(r.time))}</span><b>${esc(r.title)}</b>
-        <span class="nums">${r.actual ? `${esc(r.actual)} vs ` : ""}${esc(r.consensus || "–")} exp</span>
-        <span class="rel ${t}">${esc(r.note)}</span></li>`;
+      const t = r.surprise == null ? (r.actual ? "flat" : "later") : r.surprise > 0.5 ? "hot" : r.surprise < -0.5 ? "cool" : "flat";
+      return `<tr class="${r.time > now ? "later" : ""}">
+        <td class="when"><b>${esc(day(r.time))}</b><small>${esc(clock(r.time))}</small></td>
+        <td class="what">${esc(r.title)}</td>
+        <td class="n">${r.actual ? `<b>${esc(r.actual)}</b>` : '<span class="muted">–</span>'}</td>
+        <td class="n muted">${esc(r.consensus || "–")}</td>
+        <td><span class="res res-${t}" title="${esc(r.note)}">${esc(outcome(r.note))}</span></td></tr>`;
     }).join("");
-    const leaders = b.leaders.map((l) => `<li><b>${esc(l.ticker)}</b> ${signed(l.excess)}% vs SPY (${signed(l.z)}σ) moves ${esc(l.niches.join(", "))}${l.capex ? `; spending news lifts ${esc(l.capex_niches.join(", "))}` : ""}</li>`).join("");
-    el("drivers").innerHTML = `
-      <div class="regime"><span class="pill">${esc(b.regime_label)}</span> <span class="muted">${esc(b.regime_note)}</span></div>
-      ${b.rotation ? `<div class="rotation" role="status">${esc(b.rotation)}</div>` : ""}
-      <div class="drvs">${chips || '<p class="muted">No market prices reachable.</p>'}</div>
-      <div class="cols">
-        <div><h3>US economic releases this week</h3><ul class="releases">${releases || '<li class="muted">Calendar not reachable.</li>'}</ul></div>
-        <div><h3>Leaders moving their group</h3><ul class="leaders">${leaders || '<li class="muted">No leader has made an unusual move today.</li>'}</ul>
-          ${b.tomorrow.length ? `<p class="small"><b>Next session event risk:</b> ${b.tomorrow.map((r) => esc(r.title)).join(", ")}</p>` : ""}</div>
-      </div>`;
+    const leaders = b.leaders.map((l) => `<li>
+        <div class="ld-top"><b class="ld-tk">${esc(l.ticker)}</b><span class="${tone(l.excess, 0)}">${signed(l.excess)}% vs SPY</span><small class="muted">${signed(l.z)}σ move</small></div>
+        ${l.why ? `<p class="muted small">${esc(l.why)}</p>` : ""}
+        <p class="ld-fx"><span class="muted">Moves</span> ${l.niches.map((n) => `<button type="button" class="tk" data-open="${esc(n)}">${esc(n)}</button>`).join("")}
+          ${l.capex ? `<span class="muted">Spending news lifts</span> ${l.capex_niches.map((n) => `<button type="button" class="tk" data-open="${esc(n)}">${esc(n)}</button>`).join("")}` : ""}</p></li>`).join("");
+    const mood = `<div class="mood"><span class="pill">${esc(b.regime_label)}</span><span>${esc(b.regime_note)}</span></div>
+      ${b.rotation ? `<div class="rotation" role="status"><b>Rotation alert</b><span>${esc(b.rotation)}</span></div>` : ""}`;
+    el("drivers").innerHTML =
+      block("Market mood and drivers", "How yields, oil, the dollar, VIX and copper moved today. An orange edge means an unusually large rise, blue an unusually large fall.",
+        `${mood}<div class="drvs">${chips || '<p class="muted">No market prices reachable.</p>'}</div>`) +
+      `<div class="cols">` +
+      block("Economic calendar", "This week's high-impact US releases: what came out against what was expected.",
+        releases ? `<div class="table-wrap"><table class="cal"><thead><tr><th>When</th><th>Release</th><th class="n">Actual</th><th class="n">Expected</th><th>Result</th></tr></thead><tbody>${releases}</tbody></table></div>`
+          : '<p class="muted">Calendar not reachable.</p>') +
+      block("Leaders moving their group", "Big names that made an unusual move today, and the niches they drag with them.",
+        `<ul class="leaders">${leaders || '<li class="muted">No leader has made an unusual move today.</li>'}</ul>
+        ${b.tomorrow.length ? `<div class="next-risk"><b>Next session event risk</b><span>${b.tomorrow.map((r) => esc(r.title)).join(", ")}</span></div>` : ""}`) +
+      `</div>`;
   }
 
   function bar(score) {
@@ -91,18 +110,20 @@ window.Strategy = (() => {
         <td class="sc"><b class="${tone(r.score, 19)}">${signed(r.score, 0)}</b>${bar(r.score)}</td>
         <td><span class="lbl ${tone(r.score, 19)}">${esc(r.label)}</span></td>
         <td class="n ${tone(r.news)}">${signed(r.news, 0)}</td><td class="n ${tone(r.rs)}">${signed(r.rs, 0)}</td><td class="n ${tone(r.flow)}">${signed(r.flow, 0)}</td><td class="n ${tone(r.breadth)}">${signed(r.breadth, 0)}</td>
-        <td class="${tone(r.excess, 0.25)}">${signed(r.excess)}%</td>
+        <td class="n ${tone(r.excess, 0.25)}">${signed(r.excess)}%</td>
         <td class="read" title="${esc(r.action)}">${esc(r.read)}</td>
       </tr>
       <tr class="why ${r.etf === picked ? "" : "hidden"}" data-why="${r.etf}"><td></td><td colspan="9">
         <ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
         <p class="small"><b>${esc(r.action)}.</b>${r.next_session ? ` Next session: ${esc(r.next_session)}.` : ""}</p></td></tr>`).join("");
-    const hit = b.hit_rate ? ` Yesterday's calls: ${b.hit_rate.last ? `${b.hit_rate.last.right} of ${b.hit_rate.last.total} right` : "not scored yet"}; last ${b.hit_rate.total} calls ${Math.round(b.hit_rate.rate * 100)}% right.` : "";
+    const hit = b.hit_rate ? `<span class="stat"><small>Yesterday's calls</small><b>${b.hit_rate.last ? `${b.hit_rate.last.right} of ${b.hit_rate.last.total} right` : "Not scored yet"}</b></span>
+      <span class="stat"><small>Last ${b.hit_rate.total} calls</small><b>${Math.round(b.hit_rate.rate * 100)}% right</b></span>` : "";
     el("board").innerHTML = `
-      <table class="board-table">
-        <thead><tr><th>#</th><th>Niche</th><th>Score</th><th></th><th class="n" title="News impulse: drivers and leader moves through the sensitivity matrix">News</th><th class="n" title="Relative strength vs SPY: today, yesterday, 5 days">RS</th><th class="n" title="Volume vs normal, signed by direction">Flow</th><th class="n" title="Holdings up today and above their 20-day average">Breadth</th><th>vs SPY</th><th>Read</th></tr></thead>
-        <tbody>${rows}</tbody></table>
-      <p class="muted small">Score = 40% news impulse + 30% relative strength + 15% flow + 15% breadth. Click a row for the reasons; the top two bull and bottom two bear niches (marked) go to the shortlist.${hit}
+      <div class="board-meta">${hit}<span class="legend"><i class="pick-mark"></i> Goes to the shortlist</span></div>
+      <div class="table-wrap"><table class="board-table">
+        <thead><tr><th>#</th><th>Niche</th><th>Score</th><th>Call</th><th class="n" title="News impulse: drivers and leader moves through the sensitivity matrix">News</th><th class="n" title="Relative strength vs SPY: today, yesterday, 5 days">RS</th><th class="n" title="Volume vs normal, signed by direction">Flow</th><th class="n" title="Holdings up today and above their 20-day average">Breadth</th><th class="n">vs SPY</th><th>Read</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="note">Score = 40% news impulse + 30% relative strength + 15% flow + 15% breadth.
         ${b.missing.length ? ` Not reachable: ${b.missing.map(esc).join("; ")}.` : ""}${b.demo ? " Demo data: made up so you can see the layout." : ""}</p>`;
   }
 
@@ -118,16 +139,16 @@ window.Strategy = (() => {
   }
 
   function renderShortlist(s) {
-    el("shortlist").innerHTML = s.groups.map((g) => `
-      <div class="sl-group"><div class="sl-head"><span class="${g.direction === "long" ? "bull" : "bear"}">${g.direction === "long" ? "Long" : "Short"}</span>
-        <b>${esc(g.name)}</b> <span class="muted">${esc(g.etf)} · ${signed(g.score, 0)}</span></div>
+    el("shortlist").innerHTML = s.groups.length ? `<div class="sl-grid">${s.groups.map((g) => `
+      <div class="sl-group"><div class="sl-head"><span class="dir dir-${g.direction}">${g.direction === "long" ? "Long" : "Short"}</span>
+        <b>${esc(g.name)}</b><span class="muted">${esc(g.etf)} · score ${signed(g.score, 0)}</span></div>
         ${g.candidates.map((c) => `
           <button type="button" class="cand ${c.qualifies ? "ok" : ""} ${asset && asset.ticker === c.ticker ? "on" : ""}" data-open="${c.ticker}" data-dir="${g.direction}">
             <span class="cand-top"><b>${esc(c.ticker)}</b> <span class="muted">${esc(c.name)}</span><span class="${tone(c.today, 0)}">${signed(c.today)}%</span></span>
             <span class="cand-checks">${c.checks.map((k) => `<i class="k-${k.status}" title="${esc(k.label)}: ${esc(k.detail)}">${k.status === "pass" ? "✓" : k.status === "fail" ? "✗" : "–"} ${SHORT[k.key] || esc(k.label)}</i>`).join("")}</span>
-            <span class="small ${c.qualifies ? "bull" : "muted"}">${c.qualifies ? "Qualifies" : "Fails a required check"} · fit ${Math.round(c.fit * 100)}%</span>
+            <span class="cand-foot"><span class="${c.qualifies ? "q-yes" : "q-no"}">${c.qualifies ? "Qualifies" : "Fails a required check"}</span><span class="muted">fit ${Math.round(c.fit * 100)}%</span></span>
           </button>`).join("") || '<p class="muted small">No liquid names found.</p>'}
-      </div>`).join("") || '<p class="muted">No niche stands out today.</p>';
+      </div>`).join("")}</div>` : '<p class="muted">No niche stands out today.</p>';
   }
 
   // ---- Stage 5 ----
